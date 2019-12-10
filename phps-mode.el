@@ -5,8 +5,8 @@
 ;; Author: Christian Johansson <christian@cvj.se>
 ;; Maintainer: Christian Johansson <christian@cvj.se>
 ;; Created: 3 Mar 2018
-;; Modified: 5 Dec 2019
-;; Version: 0.3.21
+;; Modified: 10 Dec 2019
+;; Version: 0.3.23
 ;; Keywords: tools, convenience
 ;; URL: https://github.com/cjohansson/emacs-phps-mode
 
@@ -61,10 +61,17 @@
 
 (defvar phps-mode-map
   (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "C-c C-r") #'phps-mode-lexer-run)
+    (define-key map (kbd "C-c C-r") #'phps-mode-rescan-buffer)
     (define-key map (kbd "C-c C-f") #'phps-mode-format-buffer)
     map)
   "Keymap for `phps-mode'.")
+
+;;;###autoload
+(defun phps-mode-rescan-buffer ()
+  "Re-scan buffer."
+  (interactive)
+  (phps-mode-reset-local-variables)
+  (phps-mode-lexer-run))
 
 ;;;###autoload
 (defun phps-mode-flycheck-setup ()
@@ -97,15 +104,14 @@
         (when phps-mode-use-psr-12
 
           ;; All PHP files MUST use the Unix LF (linefeed) line ending only.
-          (set-buffer-file-coding-system 'unix t t)
+          (set-buffer-file-coding-system 'utf-8-unix t t)
 
           ;; There MUST NOT be trailing whitespace at the end of lines.
           (delete-trailing-whitespace (point-min) (point-max))
           (whitespace-cleanup)
 
           ;; All PHP files MUST end with a non-blank line, terminated with a single LF.
-          (phps-mode-add-trailing-newline)
-          )
+          (phps-mode-add-trailing-newline))
           
         (phps-mode-analyzer-process-changes)
         (phps-mode-functions-process-current-buffer)
@@ -124,16 +130,14 @@
         (when phps-mode-use-psr-12
 
           ;; All PHP files MUST use the Unix LF (linefeed) line ending only.
-          (set-buffer-file-coding-system 'unix t t)
+          (set-buffer-file-coding-system 'utf-8-unix t t)
 
           ;; There MUST NOT be trailing whitespace at the end of lines.
           (delete-trailing-whitespace (point-min) (point-max))
           (whitespace-cleanup)
 
           ;; All PHP files MUST end with a non-blank line, terminated with a single LF.
-          (phps-mode-add-trailing-newline)
-
-          )
+          (phps-mode-add-trailing-newline))
         (indent-region (point-min) (point-max))
         (setq
          new-buffer-contents
@@ -144,6 +148,19 @@
         (switch-to-buffer old-buffer)
         (delete-region (point-min) (point-max))
         (insert new-buffer-contents)))))
+
+(defun phps-mode-reset-local-variables ()
+  "Reset local variables."
+  (setq-local phps-mode-functions-allow-after-change t)
+  (setq-local phps-mode-analyzer-change-min nil)
+  (setq-local phps-mode-functions-idle-timer nil)
+  (setq-local phps-mode-functions-lines-indent nil)
+  (setq-local phps-mode-functions-imenu nil)
+  (setq-local phps-mode-functions-processed-buffer nil)
+  (setq-local phps-mode-lexer-buffer-length nil)
+  (setq-local phps-mode-lexer-buffer-contents nil)
+  (setq-local phps-mode-lexer-tokens nil)
+  (setq-local phps-mode-lexer-states nil))
 
 (define-derived-mode phps-mode prog-mode "PHPs"
   "Major mode for PHP with Semantic integration."
@@ -178,27 +195,14 @@
   (when phps-mode-use-psr-12
 
     ;; All PHP files MUST use the Unix LF (linefeed) line ending only.
-    (set-buffer-file-coding-system 'unix t t)
+    (set-buffer-file-coding-system 'utf-8-unix t t)
 
     ;; TODO There MUST NOT be trailing whitespace at the end of lines.
     
     ;; All PHP files MUST end with a non-blank line, terminated with a single LF.
-    (setq require-final-newline t)
+    (setq require-final-newline t))
 
-    )
-
-  ;; Reset buffer-local variables
-  (setq-local phps-mode-functions-allow-after-change t)
-  (setq-local phps-mode-analyzer-change-min nil)
-  (setq-local phps-mode-functions-idle-timer nil)
-  (setq-local phps-mode-functions-lines-indent nil)
-  (setq-local phps-mode-functions-imenu nil)
-  (setq-local phps-mode-functions-processed-buffer nil)
-  (setq-local phps-mode-lexer-buffer-length nil)
-  (setq-local phps-mode-lexer-buffer-contents nil)
-  (setq-local phps-mode-lexer-tokens nil)
-  (setq-local phps-mode-lexer-states nil)
-  (setq-local phps-mode-functions-allow-after-change t)
+  (phps-mode-reset-local-variables)
 
   ;; Make (comment-region) and (uncomment-region) work
   (setq-local comment-region-function #'phps-mode-functions-comment-region)
