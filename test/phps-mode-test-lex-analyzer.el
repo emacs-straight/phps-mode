@@ -261,12 +261,30 @@
 
   (phps-mode-test--with-buffer
    "<?php\nif ($shippingMethod->id ===\n        \\MyClass::METHOD_ID\n    ) {\n"
-   "Multi-linte if statement testing equality in two lines"
+   "Multi-line if statement testing equality in two lines"
    (phps-mode-test-lex-analyzer--alternative-indentation-whole-buffer)
    (let ((buffer-contents (buffer-substring-no-properties (point-min) (point-max))))
      (should (equal
               buffer-contents
               "<?php\nif ($shippingMethod->id ===\n    \\MyClass::METHOD_ID\n) {\n    "
+              ))))
+
+  (phps-mode-test--with-buffer
+   ""
+   "Multi-line if block after opening parenthesis"
+   (execute-kbd-macro "<?php")
+   (execute-kbd-macro (kbd "<return>"))
+   (execute-kbd-macro "if (true) {")
+   (execute-kbd-macro (kbd "<return>"))
+   (execute-kbd-macro "if (")
+   (execute-kbd-macro (kbd "<return>"))
+   (let ((buffer-contents
+          (buffer-substring-no-properties
+           (point-min)
+           (point-max))))
+     (should (equal
+              buffer-contents
+              "<?php\nif (true) {\n    if (\n        \n    )\n}"
               ))))
 
   )
@@ -1287,7 +1305,7 @@
 
   (phps-mode-test--with-buffer
    "<?php\nnamespace myNamespace;\nclass myClass extends myAbstract/*  implements myInterface  */{\n    public function myFunctionA($myArg = null) {}\n    /* protected function myFunctionB($myArg = 'abc') {} */\n}"
-   "Un-comment region were some of the region is already un-commented"
+   "Un-comment region were some of the region is already un-commented 1"
    ;; (message "Tokens %s" phps-mode-lexer-tokens)
    (uncomment-region (point-min) (point-max))
    (let ((buffer-contents (buffer-substring-no-properties (point-min) (point-max))))
@@ -1303,7 +1321,7 @@
 
   (phps-mode-test--with-buffer
    "<?php\n/** $var = '123'; */\n$var = 'abc';\n"
-   "Un-comment region were some of the region is already un-commented"
+   "Un-comment region were some of the region is already un-commented 2"
    ;; (message "Tokens %s" phps-mode-lexer-tokens)
    (uncomment-region (point-min) (point-max))
    (let ((buffer-contents (buffer-substring-no-properties (point-min) (point-max))))
