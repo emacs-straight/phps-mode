@@ -27,17 +27,32 @@
 (require 'phps-mode-lexer)
 
 (defconst
-  phps-mode-automation-grammar-context-sensitive-attributes
+  phps-mode-automation-grammar--context-sensitive-attributes
   '(%prec)
   "List of context-sensitive attributes.")
 
 (defconst
-  phps-mode-automation-grammar-global-attributes
-  '(%precedence %left %right %nonassoc)
+  phps-mode-automation-grammar--lr-context-sensitive-precedence-attribute
+  '%prec
+  "The LR-parser's context-sensitive precedence attribute.")
+
+(defconst
+  phps-mode-automation-grammar--global-attributes
+  '(%left %nonassoc %precedence %right)
   "List of valid global attributes.")
 
 (defconst
-  phps-mode-automation-grammar-global-declaration
+  phps-mode-automation-grammar--lr-global-precedence-attributes
+  '(%left %nonassoc %precedence %right)
+  "The LR-parser's list of global precedence attributes.")
+
+(defconst
+  phps-mode-automation-grammar--lr--allow-default-conflict-resolution
+  t
+  "Allow shift resolution to shift/reduce conflicts were precedence is missing.")
+
+(defconst
+  phps-mode-automation-grammar--global-declaration
   '(
     (%precedence T_THROW)
     (%precedence PREC_ARROW_FUNCTION)
@@ -65,7 +80,7 @@
     (%left "*" "/" "%")
     (%precedence "!")
     (%precedence T_INSTANCEOF)
-    (%precendece "~" T_INT_CAST T_DOUBLE_CAST T_STRING_CAST T_ARRAY_CAST T_OBJECT_CAST T_BOOL_CAST T_UNSET_CAST "@" )
+    (%precedence "~" T_INT_CAST T_DOUBLE_CAST T_STRING_CAST T_ARRAY_CAST T_OBJECT_CAST T_BOOL_CAST T_UNSET_CAST "@" )
     (%right T_POW)
     (%precedence T_CLONE)
     (%precedence T_NOELSE)
@@ -75,7 +90,7 @@
   "Declaration for grammar.")
 
 (defconst
-  phps-mode-automation-grammar-non-terminals
+  phps-mode-automation-grammar--non-terminals
   '(
     absolute_trait_method_reference
     alt_if_stmt
@@ -234,7 +249,7 @@
   "The non-terminals in grammar.")
 
 (defconst
-  phps-mode-automation-grammar-terminals
+  phps-mode-automation-grammar--terminals
   '(
     "!"
     "%"
@@ -446,12 +461,12 @@
   "The terminals of grammar.")
 
 (defconst
-  phps-mode-automation-grammar-look-ahead-number
+  phps-mode-automation-grammar--look-ahead-number
   1
   "The look-ahead number of grammar.")
 
 (defconst
-  phps-mode-automation-grammar-productions
+  phps-mode-automation-grammar--productions
   '(
 
     (start
@@ -865,7 +880,7 @@
      )
 
     (if_stmt
-     (if_stmt_without_else (%prec T_NOELSE))
+     (if_stmt_without_else %prec T_NOELSE)
      (if_stmt_without_else T_ELSE statement)
      )
 
@@ -1127,8 +1142,8 @@
      (expr "%" expr)
      (expr T_SL expr)
      (expr T_SR expr)
-     ("+" (expr (%prec "~")))
-     ("-" (expr (%prec "~")))
+     ("+" expr %prec "~")
+     ("-" expr %prec "~")
      ("!" expr)
      ("~" expr)
      (expr T_IS_IDENTICAL expr)
@@ -1186,7 +1201,7 @@
      %empty)
 
     (backup_fn_flags
-     (%empty (%prec PREC_ARROW_FUNCTION)))
+     (%empty %prec PREC_ARROW_FUNCTION))
 
     (backup_lex_pos
      %empty)
@@ -1419,22 +1434,22 @@
   "The productions of grammar.")
 
 (defconst
-  phps-mode-automation-grammar-start
+  phps-mode-automation-grammar--start
   'start
   "The entry-point of grammar.")
 
 (defconst
-  phps-mode-automation-grammar-e-identifier
+  phps-mode-automation-grammar--e-identifier
   '%empty
   "The e-identifier of grammar.")
 
 (defconst
-  phps-mode-automation-grammar-eof-identifier
+  phps-mode-automation-grammar--eof-identifier
   '$
   "The EOF-identifier of grammar.")
 
 (defconst
-  phps-mode-automation-grammar-lex-analyzer-function
+  phps-mode-automation-grammar--lex-analyzer-function
   (lambda(index)
     (with-current-buffer "*phps-mode-lex-analyzer*"
       (unless (= (point) index)
@@ -1449,17 +1464,49 @@
   "The custom lex-analyzer.")
 
 (defconst
-  phps-mode-automation-grammar-precendece-attribute
-  '%prec
-  "The precedence attribute of the grammar.")
+  phps-mode-automation-grammar--precedence-comparison-function
+  (lambda(a-type a-value _b-type b-value)
+    (cond
 
-(defconst
-  phps-mode-automation-grammar-precedence-comparison-function
-  #'>
+     ((and
+       a-value
+       b-value)
+      (cond
+       ((> a-value b-value)
+        t)
+
+       ((< a-value b-value)
+        nil)
+
+       ((= a-value b-value)
+
+        (cond
+         ((equal a-type '%left)
+          t)
+
+         ((equal a-type '%right)
+          nil)
+
+         ((equal a-type '%precedence)
+          t))
+
+        )))
+
+     ((and
+       a-value
+       (not b-value))
+      t)
+
+     ((and
+       (not a-value)
+       (not b-value))
+      nil)
+
+     ))
   "The precedence comparison function of the grammar.")
 
 (defconst
-  phps-mode-automation-grammar-lex-analyzer-get-function
+  phps-mode-automation-grammar--lex-analyzer-get-function
   (lambda (token)
     (with-current-buffer "*phps-mode-lex-analyzer*"
       (let ((start (car (cdr token)))

@@ -1,7 +1,7 @@
 # PHPs - Another Semantic Major-Mode for PHP in Emacs
 
 [![License GPL 3](https://img.shields.io/badge/license-GPL_3-green.svg)](https://www.gnu.org/licenses/gpl-3.0.txt)
-[![Build Status](https://travis-ci.org/cjohansson/emacs-phps-mode.svg?branch=master)](https://travis-ci.org/cjohansson/emacs-phps-mode)
+[![Build Status](https://api.travis-ci.com/cjohansson/emacs-phps-mode.svg?branch=master)](https://app.travis-ci.com/github/cjohansson/emacs-phps-mode)
 
 **Goal**: An Emacs major mode for PHP scripting language which aims at making a full semantic integration. Currently at *usable* stage.
 
@@ -28,7 +28,7 @@ This mode does not require PHP installed on your computer because it has a built
 * A interactive function that can be used interactively to format buffers `(phps-mode-format-buffer)`
 * Support for asynchronous lexer via processes (`async.el`) or threads
 * Mode-line asynchronous status
-* Bookkeeping in lexical-analysis, showing defined and undefined variables via syntax coloring
+* Bookkeeping in lexical-analysis, showing defined and undefined variables via syntax coloring (requires a theme that has distinct colors for 'font-lock-warning-face and 'font-lock-variable-name-face)
 
 ## Roadmap
 
