@@ -34,6 +34,7 @@
 
 (require 'phps-mode-lexer)
 (require 'phps-mode-macros)
+(require 'phps-mode-parser)
 (require 'phps-mode-serial)
 
 (require 'semantic)
@@ -91,6 +92,12 @@
 
 (defvar-local phps-mode-lex-analyzer--nest-location-stack nil
   "Nest location stack.")
+
+(defvar-local phps-mode-lex-analyzer--parse-trail nil
+  "Valid parse trail or nil.")
+
+(defvar-local phps-mode-lex-analyzer--parse-error nil
+  "Non-nil means an error.")
 
 
 ;; FUNCTIONS
@@ -180,7 +187,6 @@
        (equal token-name 'T_PAAMAYIM_NEKUDOTAYIM)
        (equal token-name 'T_NS_SEPARATOR)
        (equal token-name 'T_EXIT)
-       (equal token-name 'T_DIE)
        (equal token-name 'T_RETURN)
        (equal token-name 'T_YIELD_FROM)
        (equal token-name 'T_YIELD)
@@ -376,17 +382,21 @@
                                phps-mode-async-process-using-async-el)))
     (when force-synchronous
       (setq async nil))
+
     (phps-mode-serial-commands
      buffer-name
 
      (lambda()
        (let* ((lex-result
-               (phps-mode-lex-analyzer--lex-string buffer-contents))
+               (phps-mode-lex-analyzer--lex-string
+                buffer-contents))
               (processed-result
                (phps-mode-lex-analyzer--process-tokens-in-string
                 (nth 0 lex-result)
                 buffer-contents)))
-         (list lex-result processed-result)))
+         (list
+          lex-result
+          processed-result)))
 
      (lambda(result)
        (when (get-buffer buffer-name)
@@ -402,6 +412,8 @@
              (setq phps-mode-lex-analyzer--heredoc-label (nth 4 lex-result))
              (setq phps-mode-lex-analyzer--heredoc-label-stack (nth 5 lex-result))
              (setq phps-mode-lex-analyzer--nest-location-stack (nth 6 lex-result))
+             (setq phps-mode-lex-analyzer--parse-trail (nth 7 lex-result))
+             (setq phps-mode-lex-analyzer--parse-error (nth 8 lex-result))
 
              ;; Save processed result
              (setq phps-mode-lex-analyzer--processed-buffer-p t)
@@ -417,7 +429,31 @@
                  (let ((token-syntax-color (phps-mode-lex-analyzer--get-token-syntax-color token)))
                    (if token-syntax-color
                        (phps-mode-lex-analyzer--set-region-syntax-color start end token-syntax-color)
-                     (phps-mode-lex-analyzer--clear-region-syntax-color start end)))))))))
+                     (phps-mode-lex-analyzer--clear-region-syntax-color start end)))))
+
+
+             ;; Signal parser error (if any)
+             (when phps-mode-lex-analyzer--parse-error
+
+               ;; Paint error
+               (phps-mode-lex-analyzer--set-region-syntax-color
+                (nth 4 phps-mode-lex-analyzer--parse-error)
+                (point-max)
+                (list 'font-lock-face 'font-lock-warning-face))
+
+               ;; Display error
+               (display-warning
+                'phps-mode
+                (nth 1 phps-mode-lex-analyzer--parse-error)
+                :warning
+                "*PHPs Parser Errors*")
+
+               ;; Signal that causes updated mode-line status
+               (signal
+                'phps-parser-error
+                (list
+                 (nth 1 phps-mode-lex-analyzer--parse-error)
+                 (nth 4 phps-mode-lex-analyzer--parse-error))))))))
 
      (lambda(result)
        (when (get-buffer buffer-name)
@@ -426,34 +462,39 @@
                  (error-message (nth 1 result))
                  (error-start (nth 2 result))
                  (error-end (nth 3 result)))
-
              (phps-mode-lex-analyzer--reset-local-variables)
 
              (when error-message
-               (if (equal error-type 'phps-lexer-error)
-                   (progn
-                     (when error-start
-                       (if error-end
-                           (phps-mode-lex-analyzer--set-region-syntax-color
-                            error-start
-                            error-end
-                            (list 'font-lock-face 'font-lock-warning-face))
-                         (phps-mode-lex-analyzer--set-region-syntax-color
-                          error-start
-                          (point-max)
-                          (list 'font-lock-face 'font-lock-warning-face))))
-                     (display-warning
-                      'phps-mode
-                      error-message
-                      :warning
-                      "*PHPs Lexer Errors*"))
+               (cond
+
+                ((equal error-type 'phps-lexer-error)
+                 (when error-start
+                   (if error-end
+                       (phps-mode-lex-analyzer--set-region-syntax-color
+                        error-start
+                        error-end
+                        (list 'font-lock-face 'font-lock-warning-face))
+                     (phps-mode-lex-analyzer--set-region-syntax-color
+                      error-start
+                      (point-max)
+                      (list 'font-lock-face 'font-lock-warning-face))))
+                 (display-warning
+                  'phps-mode
+                  error-message
+                  :warning
+                  "*PHPs Lexer Errors*"))
+
+                (t
                  (display-warning
                   error-type
                   error-message
-                  :warning)))))))
+                  :warning))
+
+                )
+
+               )))))
 
      nil
-
      async
      async-by-process)))
 
@@ -473,22 +514,24 @@
 
      (lambda()
        (let* ((lex-result
-               (phps-mode-lex-analyzer--lex-string
-                buffer-contents
-                incremental-start-new-buffer
-                point-max
-                head-states
-                incremental-state
-                incremental-state-stack
-                incremental-heredoc-label
-                incremental-heredoc-label-stack
-                incremental-nest-location-stack
-                head-tokens))
-              (processed-result
-               (phps-mode-lex-analyzer--process-tokens-in-string
-                (nth 0 lex-result)
-                buffer-contents)))
-         (list lex-result processed-result)))
+              (phps-mode-lex-analyzer--lex-string
+               buffer-contents
+               incremental-start-new-buffer
+               point-max
+               head-states
+               incremental-state
+               incremental-state-stack
+               incremental-heredoc-label
+               incremental-heredoc-label-stack
+               incremental-nest-location-stack
+               head-tokens))
+             (processed-result
+              (phps-mode-lex-analyzer--process-tokens-in-string
+               (nth 0 lex-result)
+               buffer-contents)))
+         (list
+          lex-result
+          processed-result)))
 
      (lambda(result)
        (when (get-buffer buffer-name)
@@ -506,6 +549,11 @@
              (setq phps-mode-lex-analyzer--heredoc-label (nth 4 lex-result))
              (setq phps-mode-lex-analyzer--heredoc-label-stack (nth 5 lex-result))
              (setq phps-mode-lex-analyzer--nest-location-stack (nth 6 lex-result))
+             (setq phps-mode-lex-analyzer--parse-trail (nth 7 lex-result))
+             (setq phps-mode-lex-analyzer--parse-error (nth 8 lex-result))
+
+             (phps-mode-debug-message
+              (message "Incremental tokens: %s" phps-mode-lex-analyzer--tokens))
 
              ;; Save processed result
              (setq phps-mode-lex-analyzer--processed-buffer-p t)
@@ -525,10 +573,31 @@
                        (phps-mode-lex-analyzer--set-region-syntax-color start end token-syntax-color)
                      (phps-mode-lex-analyzer--clear-region-syntax-color start end)))))
 
-             (phps-mode-debug-message
-              (message "Incremental tokens: %s" phps-mode-lex-analyzer--tokens))))))
+             ;; Signal parser error (if any)
+             (when phps-mode-lex-analyzer--parse-error
+
+               ;; Paint error
+               (phps-mode-lex-analyzer--set-region-syntax-color
+                (nth 4 phps-mode-lex-analyzer--parse-error)
+                (point-max)
+                (list 'font-lock-face 'font-lock-warning-face))
+
+               ;; Display error
+               (display-warning
+                'phps-mode
+                (nth 1 phps-mode-lex-analyzer--parse-error)
+                :warning
+                "*PHPs Parser Errors*")
+
+               ;; Signal that causes updated mode-line status
+               (signal
+                'phps-parser-error
+                (list
+                 (nth 1 phps-mode-lex-analyzer--parse-error)
+                 (nth 4 phps-mode-lex-analyzer--parse-error))))))))
 
      (lambda(result)
+       (message "error 1: %S" result)
        (when (get-buffer buffer-name)
          (with-current-buffer buffer-name
            (let ((error-type (nth 0 result))
@@ -539,27 +608,30 @@
              (phps-mode-lex-analyzer--reset-local-variables)
 
              (when error-message
-               (if (equal error-type 'phps-lexer-error)
-                   (progn
-                     (when error-start
-                       (if error-end
-                           (phps-mode-lex-analyzer--set-region-syntax-color
-                            error-start
-                            error-end
-                            (list 'font-lock-face 'font-lock-warning-face))
-                         (phps-mode-lex-analyzer--set-region-syntax-color
-                          error-start
-                          (point-max)
-                          (list 'font-lock-face 'font-lock-warning-face))))
-                     (display-warning
-                      'phps-mode
-                      error-message
-                      :warning
-                      "*PHPs Lexer Errors*"))
+               (cond
+
+                ((equal error-type 'phps-lexer-error)
+                 (when error-start
+                   (if error-end
+                       (phps-mode-lex-analyzer--set-region-syntax-color
+                        error-start
+                        error-end
+                        (list 'font-lock-face 'font-lock-warning-face))
+                     (phps-mode-lex-analyzer--set-region-syntax-color
+                      error-start
+                      (point-max)
+                      (list 'font-lock-face 'font-lock-warning-face))))
+                 (display-warning
+                  'phps-mode
+                  error-message
+                  :warning
+                  "*PHPs Lexer Errors*"))
+
+                (t
                  (display-warning
                   error-type
                   error-message
-                  :warning)))))))
+                  :warning))))))))
 
      nil
      async
@@ -3124,12 +3196,58 @@ SQUARE-BRACKET-LEVEL and ROUND-BRACKET-LEVEL."
   (unless phps-mode-lex-analyzer--state
     (setq phps-mode-lex-analyzer--state 'ST_INITIAL)))
 
+(defun phps-mode-lex-analyzer--generate-parser-tokens (lexer-tokens)
+  "Generate parser-tokens from LEXER-TOKENS which are in reversed order."
+  (let ((parser-tokens (make-hash-table :test 'equal))
+        (previous-start))
+    (dolist (token lexer-tokens)
+      (let ((token-type (car token))
+            (token-start (car (cdr token)))
+            (token-end (cdr (cdr token))))
+        (if (or
+             (equal token-type 'T_OPEN_TAG)
+             (equal token-type 'T_DOC_COMMENT)
+             (equal token-type 'T_COMMENT))
+            (when previous-start
+              (puthash
+               token-start
+               previous-start
+               parser-tokens))
+          (cond
+           ((equal token-type 'T_CLOSE_TAG)
+            (setq
+             token
+             `(";" ,token-start . ,token-end)))
+           ((equal token-type 'T_OPEN_TAG_WITH_ECHO)
+            (setq
+             token
+             `(T_ECHO ,token-start . ,token-end))))
+          (puthash
+           token-start
+           token
+           parser-tokens))
+
+        (when (and
+               previous-start
+               (not
+                   (= previous-start token-end)))
+          (puthash
+           token-end
+           previous-start
+           parser-tokens))
+        (setq
+         previous-start
+         token-start)))
+    parser-tokens))
+
 (defun phps-mode-lex-analyzer--lex-string (contents &optional start end states state state-stack heredoc-label heredoc-label-stack nest-location-stack tokens)
   "Run lexer on CONTENTS."
   ;; Create a separate buffer, run lexer inside of it, catch errors and return them
   ;; to enable nice presentation
   (require 'phps-mode-macros)
-  (let ((buffer (generate-new-buffer "*PHPs Lexer*")))
+  (let ((buffer (generate-new-buffer "*PHPs Lexer*"))
+        (parse-trail)
+        (parse-error))
 
     ;; Create temporary buffer and run lexer in it
     (when (get-buffer buffer)
@@ -3177,13 +3295,8 @@ SQUARE-BRACKET-LEVEL and ROUND-BRACKET-LEVEL."
               ;; Run lexer or incremental lexer
               (progn
                 (if (and start end)
-                    (let ((incremental-tokens (semantic-lex start end)))
-                      (setq
-                       phps-mode-lex-analyzer--tokens
-                       (append tokens incremental-tokens)))
-                  (setq
-                   phps-mode-lex-analyzer--tokens
-                   (semantic-lex-buffer)))
+                    (semantic-lex start end)
+                  (semantic-lex-buffer))
                 (setq got-error nil))
             (when got-error
               (kill-buffer))))
@@ -3192,11 +3305,38 @@ SQUARE-BRACKET-LEVEL and ROUND-BRACKET-LEVEL."
         (setq state phps-mode-lexer--state)
         (setq state-stack phps-mode-lexer--state-stack)
         (setq states phps-mode-lexer--states)
+
+        ;; NOTE Generate parser tokens here before nreverse destructs list
+        (setq
+         phps-mode-parser-tokens
+         (phps-mode-lex-analyzer--generate-parser-tokens
+          phps-mode-lexer--generated-tokens))
         (setq tokens (nreverse phps-mode-lexer--generated-tokens))
         (setq heredoc-label phps-mode-lexer--heredoc-label)
         (setq heredoc-label-stack phps-mode-lexer--heredoc-label-stack)
-        (kill-buffer))))
-  (list tokens states state state-stack heredoc-label heredoc-label-stack))
+        (setq nest-location-stack phps-mode-lexer--nest-location-stack)
+
+        ;; Error-free parse here
+        (condition-case conditions
+            (progn
+              (setq
+               parse-trail
+               (phps-mode-parser-parse)))
+          (error
+           (setq
+            parse-error
+            conditions)))
+        (kill-buffer)))
+    (list
+     tokens
+     states
+     state
+     state-stack
+     heredoc-label
+     heredoc-label-stack
+     nest-location-stack
+     parse-trail
+     parse-error)))
 
 (provide 'phps-mode-lex-analyzer)
 

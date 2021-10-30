@@ -24,9 +24,9 @@
 ;; any higher order meta-lexer logic goes into `phps-mode-lex-analyzer.el'.
 ;;
 ;; Features:
-;; * Defines the lexer for this grammar based on the Zend PHP Lexer at
-;;  `https://github.com/php/php-src/blob/master/Zend/zend_language_scanner.l'
-;;  which is using re2c.
+;; * Defines the lexer for this grammar based on the Zend PHP 8.0 Lexer at
+;; https://raw.githubusercontent.com/php/php-src/php-8.0.0/Zend/zend_language_parser.y
+;; which is using re2c.
 
 ;;; Code:
 
@@ -120,6 +120,9 @@
 (defvar-local phps-mode-lexer--generated-new-tokens nil
   "List of current newly generated tokens.")
 
+(defvar-local phps-mode-lexer--generated-new-tokens-index nil
+  "Index started at when generated new tokens.")
+
 (defvar-local phps-mode-lexer--state nil
   "Current state of lexer.")
 
@@ -147,15 +150,18 @@
 (defvar-local phps-mode-lexer--nest-location-stack nil
   "Nesting stack.")
 
+(defvar-local phps-mode-lexer--parser-mode nil
+  "Non-nil means we are in parser-mode.")
+
 (defvar-local phps-mode-lexer--restart-flag nil
-  "Flag whether to restart or not.")
+  "Non-nil means restart.")
 
 ;; HELPER FUNCTIONS
 
 
 (defun phps-mode-lexer--parser-mode ()
   "Return whether we have some expected value or not."
-  nil)
+  phps-mode-lexer--parser-mode)
 
 (defun phps-mode-lexer--begin (state)
   "Begin STATE."
@@ -473,6 +479,9 @@
   (setq phps-mode-lexer--generated-new-tokens nil)
   (setq phps-mode-lexer--restart-flag nil)
   (let ((old-start (point)))
+    (setq
+     phps-mode-lexer--generated-new-tokens-index
+     old-start)
     (phps-mode-debug-message
      (let ((start (point))
            (end (+ (point) 5))
@@ -509,7 +518,7 @@
 
       (phps-mode-lexer--match-macro
        (and ST_IN_SCRIPTING (looking-at "die"))
-       (phps-mode-lexer--return-token-with-indent 'T_DIE))
+       (phps-mode-lexer--return-token-with-indent 'T_EXIT))
 
       (phps-mode-lexer--match-macro
        (and ST_IN_SCRIPTING (looking-at "fn"))
@@ -1672,12 +1681,12 @@
 
                          ;; (message "Found starting expression inside double-quoted string at: %s %s" start variable-start)
                          (phps-mode-lexer--return-token-with-val
-                          'T_CONSTANT_ENCAPSED_STRING
+                          'T_ENCAPSED_AND_WHITESPACE
                           start
                           variable-start)))
                    (progn
                      (phps-mode-lexer--return-token-with-val
-                      'T_CONSTANT_ENCAPSED_STRING
+                      'T_ENCAPSED_AND_WHITESPACE
                       start
                       end)
                      ;; (message "Found end of quote at %s-%s, moving ahead after '%s'" start end (buffer-substring-no-properties start end))
