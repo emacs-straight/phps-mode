@@ -81,9 +81,9 @@
     (funcall logic)
     (message "Passed %s" name)))
 
-(defun phps-mode-test-parser-boundaries ()
-  "Run test for lexer."
-  (message "-- Running tests for parser boundaries... --\n")
+(defun phps-mode-test-parser-parse ()
+  "Run test for parser."
+  (message "-- Running tests for parser basic... --\n")
 
   (phps-mode-test-parser--buffer-contents
    "<?php echo 'hello';"
@@ -100,7 +100,7 @@
             "%d: %S -> %S"
             production-number
             (car (car production))
-            (car (car (cdr production))))))
+            (car (cdr production)))))
        (message "\n")
        (should
         (equal
@@ -153,7 +153,7 @@
             "%d: %S -> %S"
             production-number
             (car (car production))
-            (car (car (cdr production))))))
+            (car (cdr production)))))
        (message "\n")
        (should
         (equal
@@ -174,7 +174,7 @@
             "%d: %S -> %S"
             production-number
             (car (car production))
-            (car (car (cdr production))))))
+            (car (cdr production)))))
        (message "\n")
        (should
         (equal
@@ -195,7 +195,7 @@
             "%d: %S -> %S"
             production-number
             (car (car production))
-            (car (car (cdr production))))))
+            (car (cdr production)))))
        (message "\n")
        (should
         (equal
@@ -216,7 +216,7 @@
             "%d: %S -> %S"
             production-number
             (car (car production))
-            (car (car (cdr production))))))
+            (car (cdr production)))))
        (message "\n")
        (should
         (equal
@@ -237,7 +237,7 @@
             "%d: %S -> %S"
             production-number
             (car (car production))
-            (car (car (cdr production))))))
+            (car (cdr production)))))
        (message "\n")
        (should
         (equal
@@ -304,13 +304,171 @@
    (lambda()
      (phps-mode-parser-parse)))
 
-  (message "\n-- Ran tests for parser boundaries. --"))
+  (message "\n-- Ran tests for parser parse. --"))
+
+(defun phps-mode-test-parser-translate ()
+  "Run test for parse translation."
+  (message "-- Running tests for parser translation... --\n")
+
+  ;; TODO Generate bookkeeping and imenu index here
+  (let ((imenu-index))
+
+    ;; function_declaration_statement -> (function returns_ref T_STRING backup_doc_comment "(" parameter_list ")" return_type backup_fn_flags "{" inner_statement_list "}" backup_fn_flags)
+    (puthash
+     174
+     (lambda(args terminals)
+       (push
+        `(,(nth 2 args) . ,(car (cdr (nth 2 terminals))))
+        imenu-index))
+     phps-mode-parser--table-translations)
+
+    (phps-mode-test-parser--buffer-contents
+     "<?php\nfunction myFunctionA() {}\nfunction myFunctionB() {}\n$var = function () {\n    echo 'here';\n};"
+     "Imenu function-oriented file with anonymous function"
+     (lambda()
+       (let ((parse (phps-mode-parser-parse)))
+         (message "Left-to-right with left-most derivation:\n%S\n" parse)
+         (dolist (production-number (reverse parse))
+           (let ((production
+                  (phps-mode-parser--get-grammar-production-by-number
+                   production-number)))
+             (message
+              "%d: %S -> %S"
+              production-number
+              (car (car production))
+              (car (cdr production))))))
+       (phps-mode-parser-translate)
+       (setq
+        imenu-index
+        (nreverse imenu-index))
+       (should
+        (equal
+         imenu-index
+         '(("myFunctionA" . 16) ("myFunctionB" . 42))))
+       ;; TODO Test bookkeeping here
+       )))
+  (message "Passed functional oriented imenu-index")
+
+  (let ((imenu-functions)
+        (imenu-namespaces)
+        (imenu-classes)
+        (imenu-methods))
+
+    ;; function_declaration_statement -> (function returns_ref T_STRING backup_doc_comment "(" parameter_list ")" return_type backup_fn_flags "{" inner_statement_list "}" backup_fn_flags)
+    (puthash
+     174
+     (lambda(args terminals)
+       (let ((ast-object
+              (list
+               'function
+               (nth 2 args)
+               (car (cdr (nth 2 terminals)))
+               (car (cdr (nth 9 terminals)))
+               (car (cdr (nth 11 terminals))))))
+         (message "Function: %S" ast-object)
+         (message "args: %S" args)
+         (message "terminals: %S" terminals)
+         (push
+          ast-object
+          imenu-functions)
+         ast-object))
+     phps-mode-parser--table-translations)
+
+    ;; attributed_class_statement -> (method_modifiers function returns_ref identifier backup_doc_comment "(" parameter_list ")" return_type backup_fn_flags method_body backup_fn_flags)
+    (puthash
+     280
+     (lambda(args terminals)
+       (let ((ast-object
+              (list
+               'method
+               (nth 3 args)
+               (car (cdr (nth 3 terminals)))
+               (car (cdr (car (nth 10 terminals))))
+               (cdr (cdr (car (cdr (cdr (nth 10 terminals)))))))))
+         (message "Method: %S" ast-object)
+         (message "args: %S" args)
+         (message "terminals: %S" terminals)
+         (push
+          ast-object
+          imenu-methods)
+         ast-object))
+     phps-mode-parser--table-translations)
+
+    ;; top_statement -> (T_NAMESPACE namespace_declaration_name ";")
+    (puthash
+     106
+     (lambda(args terminals)
+       (let ((ast-object
+              (list
+               'namespace
+               (nth 1 args)
+               (car (cdr (nth 1 terminals)))
+               (car (cdr (nth 2 terminals)))
+               'max)))
+         (message "Namespace %S" ast-object)
+         (message "args: %S" args)
+         (message "terminals: %S" terminals)
+         (push
+          ast-object
+          imenu-namespaces)
+         ast-object))
+     phps-mode-parser--table-translations)
+
+    ;; class_declaration_statement -> (T_CLASS T_STRING extends_from implements_list backup_doc_comment "{" class_statement_list "}")
+    (puthash
+     180
+     (lambda(args terminals)
+       (let ((ast-object
+              (list
+               'class
+               (nth 1 args)
+               (car (cdr (nth 1 terminals)))
+               (car (cdr (nth 5 terminals)))
+               (car (cdr (nth 7 terminals))))))
+         (message "Class %S" ast-object)
+         (message "args: %S" args)
+         (message "terminals: %S" terminals)
+         (push
+          ast-object
+          imenu-classes)
+         ast-object))
+     phps-mode-parser--table-translations)
+
+    (phps-mode-test-parser--buffer-contents
+     "<?php\n\nnamespace MyNamespace;\n\nfunction aFunction() {\n    /**\n     * With some contents\n     */\n}\n\nclass MyClass\n{\n\n    /**\n     *\n     */\n    public function __construct()\n    {\n        if ($test) {\n        }\n    }\n\n    /**\n     *\n     */\n    public function myFunction1()\n    {\n        $this->addMessage(\"My random {$message} here\" . ($random > 1 ? \"A\" : \"\") . \" was here.\");\n    }\n    \n    /**\n     *\n     */\n    public function myFunction2()\n    {\n    }\n\n    /**\n     * It's good\n     */\n    public function myFunction3()\n    {\n    }\n\n    /**\n     *\n     */\n    public function myFunction4()\n    {\n    }\n}\n"
+     "Imenu with double quoted string with variable inside it and concatenated string"
+     (lambda()
+       (let ((parse (phps-mode-parser-parse)))
+         (message "Left-to-right with left-most derivation:\n%S\n" parse)
+         (dolist (production-number (reverse parse))
+           (let ((production
+                  (phps-mode-parser--get-grammar-production-by-number
+                   production-number)))
+             (message
+              "%d: %S -> %S"
+              production-number
+              (car (car production))
+              (car (cdr production))))))
+       (let ((translation (phps-mode-parser-translate))
+             (imenu-index))
+         (message "translation: %S" translation)
+
+         ;; TODO Build imenu-index here
+         (should
+          (equal
+           imenu-index
+           '(("MyNamespace" ("MyClass" ("__construct" . 92) ("myFunction1" . 193) ("myFunction2" . 365) ("myFunction3" . 445) ("myFunction4" . 515))))))
+         ;; TODO Test bookkeeping here
+         ))))
+
+  (message "\n-- Ran tests for parser translation. --"))
 
 (defun phps-mode-test-parser ()
   "Run test for lexer."
   (message "-- Running all tests for parser... --\n")
 
-  (phps-mode-test-parser-boundaries)
+  (phps-mode-test-parser-parse)
+  ;; (phps-mode-test-parser-translate)
 
   (message "\n-- Ran all tests for parser. --"))
 
