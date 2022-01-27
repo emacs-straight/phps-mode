@@ -1,21 +1,6 @@
 ;;; phps-mode-test-parser.el --- Tests for parser -*- lexical-binding: t -*-
 
-;; Copyright (C) 2017-2021  Free Software Foundation, Inc.
-
-;; This file is not part of GNU Emacs.
-
-;; This program is free software; you can redistribute it and/or
-;; modify it under the terms of the GNU General Public License as
-;; published by the Free Software Foundation; either version 2, or (at
-;; your option) any later version.
-
-;; This program is distributed in the hope that it will be useful, but
-;; WITHOUT ANY WARRANTY; without even the implied warranty of
-;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-;; General Public License for more details.
-
-;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; Copyright (C) 2018-2022  Free Software Foundation, Inc.
 
 
 ;;; Commentary:
@@ -28,7 +13,6 @@
 (require 'ert)
 (require 'phps-mode)
 (require 'phps-mode-lex-analyzer)
-(require 'phps-mode-parser)
 
 (defun phps-mode-test-parser--buffer-contents (buffer-contents name logic)
   (with-temp-buffer
@@ -40,37 +24,37 @@
      (buffer-substring-no-properties (point-min) (point-max)))
     
     ;; Setup lexer
-    (setq
+    (setq-local
      phps-mode-lexer--generated-tokens
      nil)
-    (setq
+    (setq-local
      phps-mode-lexer--state
      'ST_INITIAL)
-    (setq
+    (setq-local
      phps-mode-lexer--states
      nil)
-    (setq
+    (setq-local
      phps-mode-lexer--state-stack
      nil)
-    (setq
+    (setq-local
      phps-mode-lexer--heredoc-label
      nil)
-    (setq
+    (setq-local
      phps-mode-lexer--heredoc-label-stack
      nil)
-    (setq
+    (setq-local
      phps-mode-lexer--nest-location-stack
      nil)
 
     ;; Run lexer
-    (setq
-     semantic-lex-analyzer
-     #'phps-mode-lex-analyzer--re2c-lex)
-    (setq
-     semantic-lex-syntax-table
-     phps-mode-syntax-table)
-    (semantic-lex-buffer)
-    (setq
+    (setq-local
+     phps-mode-lex-analyzer--lexer-index
+     (point-min))
+    (setq-local
+     phps-mode-lex-analyzer--lexer-max-index
+     (point-max))
+    (phps-mode-lex-analyzer--re2c-lex-analyzer)
+    (setq-local
      phps-mode-parser-tokens
      (phps-mode-lex-analyzer--generate-parser-tokens
       phps-mode-lexer--generated-tokens))
@@ -91,7 +75,7 @@
    (lambda()
 
      (let ((parse (phps-mode-parser-parse)))
-       (message "Left-to-right with left-most derivation:\n%S\n" parse)
+       (message "Left-to-right with right-most derivation:\n%S\n" parse)
        (dolist (production-number (reverse parse))
          (let ((production
                 (phps-mode-parser--get-grammar-production-by-number
@@ -144,7 +128,7 @@
    "Advanced echo test with 2 echo sections"
    (lambda()
      (let ((parse (phps-mode-parser-parse)))
-       (message "Left-to-right with left-most derivation:\n%S\n" parse)
+       (message "Left-to-right with right-most derivation:\n%S\n" parse)
        (dolist (production-number (reverse parse))
          (let ((production
                 (phps-mode-parser--get-grammar-production-by-number
@@ -165,7 +149,7 @@
    "Simple function defintion"
    (lambda()
      (let ((parse (phps-mode-parser-parse)))
-       (message "Left-to-right with left-most derivation:\n%S\n" parse)
+       (message "Left-to-right with right-most derivation:\n%S\n" parse)
        (dolist (production-number (reverse parse))
          (let ((production
                 (phps-mode-parser--get-grammar-production-by-number
@@ -186,7 +170,7 @@
    "Simple function defintion inside un-bracketed namespace"
    (lambda()
      (let ((parse (phps-mode-parser-parse)))
-       (message "Left-to-right with left-most derivation:\n%S\n" parse)
+       (message "Left-to-right with right-most derivation:\n%S\n" parse)
        (dolist (production-number (reverse parse))
          (let ((production
                 (phps-mode-parser--get-grammar-production-by-number
@@ -207,7 +191,7 @@
    "Simple function defintion inside bracketed namespace"
    (lambda()
      (let ((parse (phps-mode-parser-parse)))
-       (message "Left-to-right with left-most derivation:\n%S\n" parse)
+       (message "Left-to-right with right-most derivation:\n%S\n" parse)
        (dolist (production-number (reverse parse))
          (let ((production
                 (phps-mode-parser--get-grammar-production-by-number
@@ -228,7 +212,7 @@
    "Simple function defintion and property inside class inside non-bracketed namespace"
    (lambda()
      (let ((parse (phps-mode-parser-parse)))
-       (message "Left-to-right with left-most derivation:\n%S\n" parse)
+       (message "Left-to-right with right-most derivation:\n%S\n" parse)
        (dolist (production-number (reverse parse))
          (let ((production
                 (phps-mode-parser--get-grammar-production-by-number
@@ -304,171 +288,20 @@
    (lambda()
      (phps-mode-parser-parse)))
 
+  ;; TODO Make this pass
+  ;; (phps-mode-test-parser--buffer-contents
+  ;;  "<?php\n$case = 'First';\nswitch ($case)\n{\n    case 'First':\n    case 'Second':\n        echo 'was here';\n}"
+  ;;  "Switch case with multiple conditions for same case"
+  ;;  (lambda()
+  ;;    (phps-mode-parser-parse)))
+
   (message "\n-- Ran tests for parser parse. --"))
-
-(defun phps-mode-test-parser-translate ()
-  "Run test for parse translation."
-  (message "-- Running tests for parser translation... --\n")
-
-  ;; TODO Generate bookkeeping and imenu index here
-  (let ((imenu-index))
-
-    ;; function_declaration_statement -> (function returns_ref T_STRING backup_doc_comment "(" parameter_list ")" return_type backup_fn_flags "{" inner_statement_list "}" backup_fn_flags)
-    (puthash
-     174
-     (lambda(args terminals)
-       (push
-        `(,(nth 2 args) . ,(car (cdr (nth 2 terminals))))
-        imenu-index))
-     phps-mode-parser--table-translations)
-
-    (phps-mode-test-parser--buffer-contents
-     "<?php\nfunction myFunctionA() {}\nfunction myFunctionB() {}\n$var = function () {\n    echo 'here';\n};"
-     "Imenu function-oriented file with anonymous function"
-     (lambda()
-       (let ((parse (phps-mode-parser-parse)))
-         (message "Left-to-right with left-most derivation:\n%S\n" parse)
-         (dolist (production-number (reverse parse))
-           (let ((production
-                  (phps-mode-parser--get-grammar-production-by-number
-                   production-number)))
-             (message
-              "%d: %S -> %S"
-              production-number
-              (car (car production))
-              (car (cdr production))))))
-       (phps-mode-parser-translate)
-       (setq
-        imenu-index
-        (nreverse imenu-index))
-       (should
-        (equal
-         imenu-index
-         '(("myFunctionA" . 16) ("myFunctionB" . 42))))
-       ;; TODO Test bookkeeping here
-       )))
-  (message "Passed functional oriented imenu-index")
-
-  (let ((imenu-functions)
-        (imenu-namespaces)
-        (imenu-classes)
-        (imenu-methods))
-
-    ;; function_declaration_statement -> (function returns_ref T_STRING backup_doc_comment "(" parameter_list ")" return_type backup_fn_flags "{" inner_statement_list "}" backup_fn_flags)
-    (puthash
-     174
-     (lambda(args terminals)
-       (let ((ast-object
-              (list
-               'function
-               (nth 2 args)
-               (car (cdr (nth 2 terminals)))
-               (car (cdr (nth 9 terminals)))
-               (car (cdr (nth 11 terminals))))))
-         (message "Function: %S" ast-object)
-         (message "args: %S" args)
-         (message "terminals: %S" terminals)
-         (push
-          ast-object
-          imenu-functions)
-         ast-object))
-     phps-mode-parser--table-translations)
-
-    ;; attributed_class_statement -> (method_modifiers function returns_ref identifier backup_doc_comment "(" parameter_list ")" return_type backup_fn_flags method_body backup_fn_flags)
-    (puthash
-     280
-     (lambda(args terminals)
-       (let ((ast-object
-              (list
-               'method
-               (nth 3 args)
-               (car (cdr (nth 3 terminals)))
-               (car (cdr (car (nth 10 terminals))))
-               (cdr (cdr (car (cdr (cdr (nth 10 terminals)))))))))
-         (message "Method: %S" ast-object)
-         (message "args: %S" args)
-         (message "terminals: %S" terminals)
-         (push
-          ast-object
-          imenu-methods)
-         ast-object))
-     phps-mode-parser--table-translations)
-
-    ;; top_statement -> (T_NAMESPACE namespace_declaration_name ";")
-    (puthash
-     106
-     (lambda(args terminals)
-       (let ((ast-object
-              (list
-               'namespace
-               (nth 1 args)
-               (car (cdr (nth 1 terminals)))
-               (car (cdr (nth 2 terminals)))
-               'max)))
-         (message "Namespace %S" ast-object)
-         (message "args: %S" args)
-         (message "terminals: %S" terminals)
-         (push
-          ast-object
-          imenu-namespaces)
-         ast-object))
-     phps-mode-parser--table-translations)
-
-    ;; class_declaration_statement -> (T_CLASS T_STRING extends_from implements_list backup_doc_comment "{" class_statement_list "}")
-    (puthash
-     180
-     (lambda(args terminals)
-       (let ((ast-object
-              (list
-               'class
-               (nth 1 args)
-               (car (cdr (nth 1 terminals)))
-               (car (cdr (nth 5 terminals)))
-               (car (cdr (nth 7 terminals))))))
-         (message "Class %S" ast-object)
-         (message "args: %S" args)
-         (message "terminals: %S" terminals)
-         (push
-          ast-object
-          imenu-classes)
-         ast-object))
-     phps-mode-parser--table-translations)
-
-    (phps-mode-test-parser--buffer-contents
-     "<?php\n\nnamespace MyNamespace;\n\nfunction aFunction() {\n    /**\n     * With some contents\n     */\n}\n\nclass MyClass\n{\n\n    /**\n     *\n     */\n    public function __construct()\n    {\n        if ($test) {\n        }\n    }\n\n    /**\n     *\n     */\n    public function myFunction1()\n    {\n        $this->addMessage(\"My random {$message} here\" . ($random > 1 ? \"A\" : \"\") . \" was here.\");\n    }\n    \n    /**\n     *\n     */\n    public function myFunction2()\n    {\n    }\n\n    /**\n     * It's good\n     */\n    public function myFunction3()\n    {\n    }\n\n    /**\n     *\n     */\n    public function myFunction4()\n    {\n    }\n}\n"
-     "Imenu with double quoted string with variable inside it and concatenated string"
-     (lambda()
-       (let ((parse (phps-mode-parser-parse)))
-         (message "Left-to-right with left-most derivation:\n%S\n" parse)
-         (dolist (production-number (reverse parse))
-           (let ((production
-                  (phps-mode-parser--get-grammar-production-by-number
-                   production-number)))
-             (message
-              "%d: %S -> %S"
-              production-number
-              (car (car production))
-              (car (cdr production))))))
-       (let ((translation (phps-mode-parser-translate))
-             (imenu-index))
-         (message "translation: %S" translation)
-
-         ;; TODO Build imenu-index here
-         (should
-          (equal
-           imenu-index
-           '(("MyNamespace" ("MyClass" ("__construct" . 92) ("myFunction1" . 193) ("myFunction2" . 365) ("myFunction3" . 445) ("myFunction4" . 515))))))
-         ;; TODO Test bookkeeping here
-         ))))
-
-  (message "\n-- Ran tests for parser translation. --"))
 
 (defun phps-mode-test-parser ()
   "Run test for lexer."
   (message "-- Running all tests for parser... --\n")
 
   (phps-mode-test-parser-parse)
-  ;; (phps-mode-test-parser-translate)
 
   (message "\n-- Ran all tests for parser. --"))
 

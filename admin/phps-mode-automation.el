@@ -1,28 +1,19 @@
 ;;; phps-mode-automation --- Generate a Wisent Parser file -*- lexical-binding: t -*-
 
-;; Copyright (C) 2018-2021  Free Software Foundation, Inc.
-
-;; This file is not part of GNU Emacs.
-
-;; This program is free software; you can redistribute it and/or
-;; modify it under the terms of the GNU General Public License as
-;; published by the Free Software Foundation; either version 2, or (at
-;; your option) any later version.
-
-;; This program is distributed in the hope that it will be useful, but
-;; WITHOUT ANY WARRANTY; without even the implied warranty of
-;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-;; General Public License for more details.
-
-;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs.  If not, see <http://www.gnu.org/licenses/>.
+;; Copyright (C) 2018-2022  Free Software Foundation, Inc.
 
 
 ;;; Commentary:
 
-;;; Uses a parser to convert LALR Yacc grammar to Wisent grammar
+;;; Uses a parser-generator library to convert LALR(1) YACC grammar into a Canonical LR(1) Parser
 
-;;; AST should be like this: (root (block (rule (logic))))
+;; This does not work if some variables are byte-compiled
+;; therefore we delete byte-compiled files in `make parser' command
+
+;; To resume use command: `make parser &> output.txt'
+;; and to extract Emacs-Lisp data to separate file run `cat output.txt | grep -F "-resume" - > resume.el'
+;; and then to resume parser-generation run
+;; `rm phps-mode-automation-grammar.elc; emacs -Q -batch -L . -L ~/.emacs.d/emacs-parser-generator -l phps-mode-lexer.el -l admin/phps-mode-automation.el -eval "(progn (require 'parser-generator-lr)(require 'parser-generator-lr-export))" -l resume.el -eval "(phps-mode-automation)"'
 
 
 ;;; Code:
@@ -199,18 +190,17 @@
                        "(setq parser-generator-lr--distinct-action-tables-resume %S)"
                        parser-generator-lr--distinct-action-tables))))))))
 
-        ;; NOTE This does not work if functions above are byte-compiled
-
         ;; Export
         (let ((export
                (parser-generator-lr-export-to-elisp
                 "phps-mode-parser"
                 phps-mode-automation-grammar--header
-                phps-mode-automation-grammar--copyright)))
+                phps-mode-automation-grammar--copyright))
+              (parser-file-name (expand-file-name "./phps-mode-parser.el")))
           (generate-new-buffer "*PHP Parser*")
           (switch-to-buffer "*PHP Parser*")
           (insert export)
-          (write-file (expand-file-name "./phps-mode-parser.el"))
+          (write-file parser-file-name)
           (kill-buffer)
           (message "export: %s" export))
 
