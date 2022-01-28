@@ -531,6 +531,19 @@
                 (unless (or
                          line-is-empty-p
                          line-is-comment-p)
+
+                  ;; Does line contain comment?
+                  (when (string-match-p
+                         "\\(//[^'\"]+$\\|#[^'\"]+$\\|/\\*.+\\*/\\)"
+                         line-string)
+                    ;; Delete comment region
+                    (setq
+                     line-string
+                     (replace-regexp-in-string
+                      "\\(//[^'\"]+$\\|#[^'\"]+$\\|/\\*.+\\*/\\)"
+                      ""
+                      line-string)))
+
                   (cond
                    ((= searching-previous-lines 2)
                     (setq
@@ -872,7 +885,6 @@
                   new-indentation
                   tab-width)))
 
-               ;; TODO Add :: as well
                ;; LINE CONTINUING CHAINING OBJECT OPERATORS
                ;; $myObject->myFunction()
                ;;     ->myFunction2()
@@ -892,7 +904,6 @@
                  'line-continuing-object-operators)
                 (let ((not-found t)
                       (started-chaining-on-this-line t)
-                      (is-assignment)
                       (is-string-concatenation)
                       (is-bracket-less-command)
                       (is-same-line-p t))
@@ -949,9 +960,6 @@
                          "="
                          match)
                         (setq
-                         is-assignment
-                         t)
-                        (setq
                          not-found
                          nil))
 
@@ -968,7 +976,6 @@
                        )))
 
                   (when (and
-                         (not is-assignment)
                          (not is-string-concatenation)
                          (not started-chaining-on-this-line)
                          (not is-bracket-less-command))

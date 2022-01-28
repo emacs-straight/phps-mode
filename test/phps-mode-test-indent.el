@@ -660,6 +660,18 @@
    "<?php\nif (true) {\n    $html .= 'My text'\n        . 'and more text';\n    foreach ($data as $key => $fields) {\n        $html .= '<strong>' . $key . '</strong>';\n        foreach ($fields as $key => $value) {\n            $html .= '<span>' . $value . '</span>';\n        }\n        $html .= '</ul></li>';\n    }\n    $html .= '</dd>';\n}\n"
    "Two nested foreach loops containing string concatenation assignments")
 
+  (phps-mode-test-indent--should-equal
+   "<?php\n$var = 23; /* 23 = Company */\necho 'was here';"
+   "Line after line that have an assignment doc-commented out")
+
+  (phps-mode-test-indent--should-equal
+   "<?php\n$var = 23; // 23 = Company\necho 'was here';"
+   "Line after line that have an assignment commented out")
+
+  (phps-mode-test-indent--should-equal
+   "<?php\n$var = Object->myMethod()\n    ->myMethod2();\necho 'here';"
+   "Line after assignment were an chaining of object methods started")
+
   )
 
 (defun phps-mode-test-indent--get-lines-indent-psr-2 ()
