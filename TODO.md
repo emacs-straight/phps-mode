@@ -1,7 +1,5 @@
 # TODO
 
-## Indentation
-
 ## Code intelligence
 
 * Bookkeeping of chained object operators like WC()->cart->subtotal
