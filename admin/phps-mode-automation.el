@@ -1,4 +1,4 @@
-;;; phps-mode-automation --- Generate a Wisent Parser file -*- lexical-binding: t -*-
+;;; phps-mode-automation --- Generate a parser file -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2018-2022  Free Software Foundation, Inc.
 
@@ -7,13 +7,12 @@
 
 ;;; Uses a parser-generator library to convert LALR(1) YACC grammar into a Canonical LR(1) Parser
 
-;; This does not work if some variables are byte-compiled
-;; therefore we delete byte-compiled files in `make parser' command
+;; This does not work if some variables are byte-compiled therefore we delete byte-compiled files in `make parser' command
 
 ;; To resume use command: `make parser &> output.txt'
 ;; and to extract Emacs-Lisp data to separate file run `cat output.txt | grep -F "-resume" - > resume.el'
 ;; and then to resume parser-generation run
-;; `rm phps-mode-automation-grammar.elc; emacs -Q -batch -L . -L ~/.emacs.d/emacs-parser-generator -l phps-mode-lexer.el -l admin/phps-mode-automation.el -eval "(progn (require 'parser-generator-lr)(require 'parser-generator-lr-export))" -l resume.el -eval "(phps-mode-automation)"'
+;; `rm phps-mode-automation-grammar.elc; emacs -Q -batch -L . -L ~/.emacs.d/emacs-parser-generator -l phps-mode-lexer.el -l admin/phps-mode-automation.el -eval "(progn (require 'parser-generator-lr)(require 'parser-generator-lr-export))"  -eval "(phps-mode-automation)"'
 
 
 ;;; Code:
@@ -32,12 +31,16 @@
          gc-cons-threshold
          (* 1024 1024 256))
 
-        (let* ((global-declaration (phps-mode-automation-parser-generator--global-declaration))
-               (attributes phps-mode-automation-parser-generator--attributes)
-               (grammar (phps-mode-automation-parser-generator--grammar))
-               (context-sensitive-attributes phps-mode-automation-parser-generator--context-sensitive-attributes))
+        (let* ((global-declaration
+                (phps-mode-automation-parser-generator--global-declaration))
+               (attributes
+                phps-mode-automation-parser-generator--attributes)
+               (grammar
+                (phps-mode-automation-parser-generator--grammar))
+               (context-sensitive-attributes
+                phps-mode-automation-parser-generator--context-sensitive-attributes))
 
-          (message "Generated Grammar:\n%S" grammar)
+          (message ";; Generated Grammar:\n%S" grammar)
 
           ;; Prepare export
           (when (fboundp 'parser-generator-set-grammar)
@@ -48,19 +51,25 @@
             (setq
              parser-generator--context-sensitive-attributes
              context-sensitive-attributes)
-            (message "parser-generator--context-sensitive-attributes: %S" parser-generator--context-sensitive-attributes))
+            (message
+             "(setq parser-generator--context-sensitive-attributes %S)"
+             parser-generator--context-sensitive-attributes))
 
           (when (boundp 'parser-generator-lr--context-sensitive-precedence-attribute)
             (setq
              parser-generator-lr--context-sensitive-precedence-attribute
              (car context-sensitive-attributes))
-            (message "parser-generator-lr--context-sensitive-precedence-attribute: %S" parser-generator-lr--context-sensitive-precedence-attribute))
+            (message
+             "(setq parser-generator-lr--context-sensitive-precedence-attribute %S)"
+             parser-generator-lr--context-sensitive-precedence-attribute))
 
           (when (boundp 'parser-generator--global-declaration)
             (setq
              parser-generator--global-declaration
              global-declaration)
-            (message "parser-generator--global-declaration: %S" parser-generator--global-declaration))
+            (message
+             "(setq parser-generator--global-declaration %S)"
+             parser-generator--global-declaration))
 
           (when (boundp 'parser-generator--global-attributes)
             (setq
@@ -71,7 +80,9 @@
             (setq
              parser-generator-lr--global-precedence-attributes
              attributes)
-            (message "parser-generator-lr--global-precedence-attributes: %S" parser-generator-lr--global-precedence-attributes)))
+            (message
+             "(setq parser-generator-lr--global-precedence-attributes %S)"
+             parser-generator-lr--global-precedence-attributes)))
 
         (when (fboundp 'parser-generator-set-look-ahead-number)
           (parser-generator-set-look-ahead-number
@@ -117,7 +128,7 @@
 
         (when (fboundp 'parser-generator-lr--generate-precedence-tables)
           (parser-generator-lr--generate-precedence-tables)
-          (message "Precedence Tables")
+          (message ";; Precedence Tables")
           (when (boundp 'parser-generator-lr--symbol-precedence-value)
             (message
              "(setq parser-generator-lr--symbol-precedence-value %S)"
@@ -162,14 +173,14 @@
                 (setq
                  parser-generator-lr--distinct-action-tables
                  parser-generator-lr--distinct-action-tables-resume)
-                (message "Parser tables are defined - skipping generation"))
+                (message ";; Parser tables are defined - skipping generation"))
             (progn
-              (message "Parser tables are not defined - generating..")
+              (message ";; Parser tables are not defined - generating..")
               (when (fboundp 'parser-generator-lr--generate-goto-tables)
                 (let ((table-lr-items
                        (parser-generator-lr--generate-goto-tables)))
                   (message
-                   "table-lr-items: %S"
+                   ";; table-lr-items: %S"
                    table-lr-items)
                   (when (boundp 'parser-generator-lr--goto-tables)
                     (message
@@ -189,6 +200,7 @@
                       (message
                        "(setq parser-generator-lr--distinct-action-tables-resume %S)"
                        parser-generator-lr--distinct-action-tables))))))))
+        (message "\n")
 
         ;; Export
         (let ((export
@@ -200,11 +212,11 @@
           (generate-new-buffer "*PHP Parser*")
           (switch-to-buffer "*PHP Parser*")
           (insert export)
-          (write-file parser-file-name)
-          (kill-buffer)
-          (message "export: %s" export))
+          (message ";; export: %s" export)
+          (write-file parser-file-name) ;; NOTE Will cause Debugger entered--Lisp error: (void-variable vc-logentry-check-hook)
+          (kill-buffer))
 
-        (message "Automation completed"))
+        (message ";; Automation completed"))
     (error "Emacs parser generator must be available!")))
 
 (provide 'phps-mode-automation)
