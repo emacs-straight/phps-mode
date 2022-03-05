@@ -165,6 +165,14 @@
         (phps-mode-indent--get-previous-reference-command-line)
         "    $variable =")))
 
+    (with-temp-buffer
+      (insert "<?php\n\nif (true) {\n    $valid = true;\n    $variable = myFunction();\n    switch ($variable) {\n        case Object::CASE1:\n            throw new Exception(\n                'MyException'\n            );\n        case Object::Case2:\n            throw new \\Exception(\n                'MyException2',\n            );\n        case Object::Case3:\n            $valid = false;\n            break;\n        case Object::Case4:\n            if (!Object2::validate($variable)) {\n                $valid = false;\n            }\n            break;\n        case Object::Case5:\n            $valid = false;\n            break;\n        case Object::Case6:\n            $valid = true;\n        break;\n    }\n}\n")
+      (goto-char 380)
+      (should
+       (string=
+        (phps-mode-indent--get-previous-reference-command-line)
+        "            $valid = false;")))
+
   (with-temp-buffer
     (insert "<?php\nif (true) {\n    array(\n        8,\n    );")
     (goto-char (point-max))
@@ -212,6 +220,106 @@
      (equal
       (phps-mode-indent--get-previous-start-of-bracket-line t)
       nil)))
+
+  (with-temp-buffer
+    (insert "<?php\nif (true) {\n    $table = $installer->getConnection()\n        ->newTable($installer->getTable('my_table'))\n        ->addColumn();\n}\n")
+    (goto-char 127)
+    (should
+     (equal
+      (phps-mode-indent--get-previous-start-of-chaining)
+      "        ->newTable($installer->getTable('my_table'))")))
+
+  (message "Passed chaining test #1")
+
+  (with-temp-buffer
+    (insert "<?php\nif (true) {\n    $table = $installer->getConnection()\n        ->newTable($installer->getTable('my_table'))\n        ->addColumn();\n}\n")
+    (goto-char 73)
+    (should
+     (equal
+      (phps-mode-indent--get-previous-start-of-chaining)
+      nil)))
+
+  (message "Passed chaining test #2")
+
+  (with-temp-buffer
+    (insert "<?php\nif (true) {\n    $criteria = $this->searchCriteriaBuilder\n        ->addFilter('status', $status)\n        ->addFilter(method', 'my_method_' . $object->getId())\n        ->create();\n}\n")
+    (goto-char 177)
+    (should
+     (equal
+      (phps-mode-indent--get-previous-start-of-chaining)
+      "        ->addFilter('status', $status)")))
+
+  (message "Passed chaining test #3")
+
+  (with-temp-buffer
+    (insert "<?php\nif (true) {\n    $criteria = $this->searchCriteriaBuilder\n        ->addFilter('status', $status)\n        ->addFilter(method', 'my_method_' . $object->getId())\n        ->create();\n}\n")
+    (goto-char 135)
+    (should
+     (equal
+      (phps-mode-indent--get-previous-start-of-chaining)
+      "        ->addFilter('status', $status)")))
+
+  (message "Passed chaining test #4")
+
+  (with-temp-buffer
+    (insert "<?php\nif (true) {\n    $criteria = $this->searchCriteriaBuilder\n        ->addFilter('status', $status)\n        ->addFilter(method', 'my_method_' . $object->getId())\n        ->create();\n}\n")
+    (goto-char 96)
+    (should
+     (equal
+      (phps-mode-indent--get-previous-start-of-chaining)
+      nil)))
+
+  (message "Passed chaining test #5")
+
+  (with-temp-buffer
+    (insert "<?php\nif (true) {\n    $criteria = $this->searchCriteriaBuilder\n        ->addFilter('status', $status)\n        ->addFilter(method', 'my_method_' . $object->getId())\n        ->create();\n}\n")
+    (goto-char 51)
+    (should
+     (equal
+      (phps-mode-indent--get-previous-start-of-chaining)
+      nil)))
+
+  (message "Passed chaining test #6")
+
+  (with-temp-buffer
+    (insert "<?php\n$var = 500 .\n    \"200\" .\n    100.0 .\n    '200' .\n    $this->getTail()\n        ->getBottom();")
+    (goto-char 90)
+    (should
+     (equal
+      (phps-mode-indent--get-previous-start-of-chaining)
+      "    $this->getTail()")))
+
+  (message "Passed chaining test #7")
+
+  (with-temp-buffer
+    (insert "<?php\nif ($myCondition) {\n    $myObject->myMethod(myClass::class)\n        ->myMethod2($myArgument2)\n        ->myMethod3($myArgument3);\n}")
+    (goto-char 121)
+    (should
+     (equal
+      (phps-mode-indent--get-previous-start-of-chaining)
+      "        ->myMethod2($myArgument2)")))
+
+  (message "Passed chaining test #8")
+
+  (with-temp-buffer
+    (insert "<?php\nif ($myCondition) {\n    $myObject->myMethod(myClass::class)\n        ->myMethod2($myArgument2)\n        ->myMethod3($myArgument3);\n}")
+    (goto-char 85)
+    (should
+     (equal
+      (phps-mode-indent--get-previous-start-of-chaining)
+      nil)))
+
+  (message "Passed chaining test #9")
+
+  (with-temp-buffer
+    (insert "<?php\n$myObject->myMethod(myClass::class)\n    ->myMethod2($myArgument2)\n    ->myMethod3($myArgument3);\n")
+    (goto-char 55)
+    (should
+     (equal
+      (phps-mode-indent--get-previous-start-of-chaining)
+      nil)))
+
+  (message "Passed chaining test #10")
 
   (should
    (equal
@@ -671,6 +779,18 @@
   (phps-mode-test-indent--should-equal
    "<?php\n$var = Object->myMethod()\n    ->myMethod2();\necho 'here';"
    "Line after assignment were an chaining of object methods started")
+
+  (phps-mode-test-indent--should-equal
+   "<?php\nif (true) {\n    $table = $installer->getConnection()\n        ->newTable($installer->getTable('my_table'))\n        ->addColumn();\n}\n"
+   "Variable assignment with chained method calls on multiple lines #1")
+
+  (phps-mode-test-indent--should-equal
+   "<?php\nif (true) {\n    $criteria = $this->searchCriteriaBuilder\n        ->addFilter('status', $status)\n        ->addFilter(method', 'my_method_' . $object->getId())\n        ->create();\n}\n"
+   "Variable assignment with chained method calls on multiple lines #2")
+
+  (phps-mode-test-indent--should-equal
+   "<?php\nif (true) {\n    /*\n    was here\n    */\n    echo 'there';\n}"
+   "Line after closing multi-row comment")
 
   )
 
