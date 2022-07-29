@@ -1,5 +1,6 @@
 # TODO
 
+
 ## Code intelligence
 
 * Bookkeeping of chained object operators like WC()->cart->subtotal
