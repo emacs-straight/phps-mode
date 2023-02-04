@@ -21,14 +21,15 @@ This mode does not require PHP installed on your computer because it has a built
 * Incremental parser, imenu and bookkeeping generation after buffer changes
 * Supports `(comment-region)` and `(uncomment-region)`
 * Support indentation for inline-html areas
-* Imenu support
 * Minimal mode map
 * Tested using unit tests and integration tests
 * Continuous integration tests using Travis
 * Included in GNU ELPA package archive
 * Support for asynchronous lexer via processes (`async.el`) or threads
 * Mode-line asynchronous status
-* Bookkeeping in lexical-analysis, showing defined and undefined variables via syntax coloring (requires a theme that has distinct colors for 'font-lock-warning-face and 'font-lock-variable-name-face)
+* Bookkeeping of symbols via syntax-directed translation, showing defined and undefined symbols via syntax coloring (requires a theme that has distinct colors for 'font-lock-warning-face and 'font-lock-variable-name-face)
+* Imenu generation via syntax-directed translation, showing namespaces, classes, functions, traits, interfaces and variables
+* Generation of symbol-table via syntax-directed translation
 * Canonical LR(1) Parser automatically generated from official PHP 8.1 LALR(1) YACC grammar
 
 ## Issues and roadmap
@@ -108,8 +109,9 @@ Enable with:
     (setq phps-mode-async-process-using-async-el nil))
 ```
 
-### Load and configure using regular emacs-lisp with flycheck support, no asynchronous support
+### Install, load and configure using regular emacs-lisp with flycheck support, no asynchronous support
 ``` emacs-lisp
+(package-install 'phps-mode)
 (require 'phps-mode)
 (add-to-list 'auto-mode-alist '("\\.\\(php\\|phtml\\)\\'" . phps-mode))
 (phps-mode-flycheck-setup)
