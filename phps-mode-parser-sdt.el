@@ -708,7 +708,7 @@
                         (setq next-scope-is-this-object-operator t))))
                    ((equal next-scope-type 'static-member)
                     (setq scope-static-member t)
-                    (let ((downcased-scope-name (downcase (car (cdr next-scope)))))
+                    (let ((downcased-scope-name (downcase (plist-get (car (cdr next-scope)) 'name))))
                       (when (or
                              (string= downcased-scope-name "self")
                              (string= downcased-scope-name "static"))
@@ -1612,8 +1612,13 @@
                  (and
                   symbol-static-member
                   (not
-                   (or (string= (downcase symbol-static-member) "self")
-                       (string= (downcase symbol-static-member) "static")))))
+                   (or
+                    (and
+                     (listp symbol-static-member)
+                     (string= (downcase (plist-get symbol-static-member 'name)) "self"))
+                    (and
+                     (listp symbol-static-member)
+                     (string= (downcase (plist-get symbol-static-member 'name)) "static"))))))
           (cond
 
            ;; Super-global variable
@@ -2015,16 +2020,56 @@
 (puthash 90 (lambda(args _terminals) args) phps-mode-parser--table-translations)
 
 ;; 91 ((name) (T_STRING))
-(puthash 91 (lambda(args _terminals) args) phps-mode-parser--table-translations)
+(puthash
+ 91
+ (lambda(args _terminals)
+   `(
+     ast-type
+     string-name
+     name
+     ,args
+     )
+   )
+ phps-mode-parser--table-translations)
 
 ;; 92 ((name) (T_NAME_QUALIFIED))
-(puthash 92 (lambda(args _terminals) args) phps-mode-parser--table-translations)
+(puthash
+ 92
+ (lambda(args _terminals)
+   `(
+     ast-type
+     qualified-name
+     name
+     ,args
+     )
+   )
+ phps-mode-parser--table-translations)
 
 ;; 93 ((name) (T_NAME_FULLY_QUALIFIED))
-(puthash 93 (lambda(args _terminals) args) phps-mode-parser--table-translations)
+(puthash
+ 93
+ (lambda(args _terminals)
+   `(
+     ast-type
+     fully-qualified-name
+     name
+     ,args
+     )
+   )
+ phps-mode-parser--table-translations)
 
 ;; 94 ((name) (T_NAME_RELATIVE))
-(puthash 94 (lambda(args _terminals) args) phps-mode-parser--table-translations)
+(puthash
+ 94
+ (lambda(args _terminals)
+   `(
+     ast-type
+     relative-name
+     name
+     ,args
+     )
+   )
+ phps-mode-parser--table-translations)
 
 ;; 95 ((attribute_decl) (class_name))
 (puthash
@@ -4259,10 +4304,18 @@
 (puthash 283 (lambda(_args _terminals) 'T_ELLIPSIS) phps-mode-parser--table-translations)
 
 ;; 284 ((non_empty_argument_list) (argument))
-(puthash 284 (lambda(args _terminals) (list (nth 0 args))) phps-mode-parser--table-translations)
+(puthash
+ 284
+ (lambda(args _terminals)
+   (list args))
+ phps-mode-parser--table-translations)
 
 ;; 285 ((non_empty_argument_list) (non_empty_argument_list "," argument))
-(puthash 285 (lambda(args _terminals) (append (nth 0 args) (list (nth 2 args)))) phps-mode-parser--table-translations)
+(puthash
+ 285
+ (lambda(args _terminals)
+   (append (nth 0 args) (list (nth 2 args))))
+ phps-mode-parser--table-translations)
 
 ;; 286 ((argument) (expr))
 (puthash
@@ -4271,8 +4324,6 @@
    `(
      ast-type
      argument
-     type
-     nil
      value
      ,args
      )
@@ -4285,8 +4336,8 @@
  (lambda(args _terminals)
    `(
      ast-type
-     argument
-     type
+     named-argument
+     name
      ,(nth 0 args)
      value
      ,(nth 2 args)
@@ -4374,7 +4425,7 @@
 ;; 298 ((attributed_class_statement) (variable_modifiers optional_type_without_static property_list ";"))
 (puthash
  298
- (lambda(args terminals)
+ (lambda(args _terminals)
    `(
      ast-type
      property
@@ -4384,10 +4435,6 @@
      ,(nth 1 args)
      subject
      ,(nth 2 args)
-     ast-start
-     ,(car (cdr (car (nth 2 terminals))))
-     ast-end
-     ,(cdr (cdr (car (nth 2 terminals))))
      ))
  phps-mode-parser--table-translations)
 
@@ -4395,7 +4442,27 @@
 (puthash
  299
  (lambda(args terminals)
-   ;; TODO Bookkeep class constants here
+   (when-let (const-list (nth 2 args))
+     (let ((const-count (length const-list))
+           (const-index 0))
+       (while (< const-index const-count)
+         (let* ((const-item (nth const-index const-list))
+                (const-item-type (plist-get const-item 'ast-type)))
+           (when (equal const-item-type 'constant-assignment)
+             (let ((constant-name
+                    (plist-get const-item 'ast-identifier))
+                   (constant-start
+                    (car (cdr (nth const-index (nth 2 terminals)))))
+                   (constant-end
+                    (cdr (cdr (nth const-index (nth 2 terminals))))))
+               (push
+                (list
+                 constant-name
+                 phps-mode-parser-sdt--bookkeeping-namespace
+                 constant-start
+                 constant-end)
+                phps-mode-parser-sdt--bookkeeping-symbol-assignment-stack))))
+         (setq const-index (1+ const-index)))))
    `(
      ast-type
      constant
@@ -4924,10 +4991,18 @@
 (puthash 336 (lambda(_args _terminals) 'readonly) phps-mode-parser--table-translations)
 
 ;; 337 ((property_list) (property_list "," property))
-(puthash 337 (lambda(args _terminals) (append (nth 0 args) (nth 2 args))) phps-mode-parser--table-translations)
+(puthash
+ 337
+ (lambda(args _terminals)
+   (append (nth 0 args) (list (nth 2 args))))
+ phps-mode-parser--table-translations)
 
 ;; 338 ((property_list) (property))
-(puthash 338 (lambda(args _terminals) (list args)) phps-mode-parser--table-translations)
+(puthash
+ 338
+ (lambda(args _terminals)
+   (list args))
+ phps-mode-parser--table-translations)
 
 ;; 339 ((property) (T_VARIABLE backup_doc_comment))
 (puthash
@@ -5001,7 +5076,14 @@
 ;; 344 ((const_decl) (T_STRING "=" expr backup_doc_comment))
 (puthash
  344
- (lambda(args _terminals)
+ (lambda(args terminals)
+   (push
+    (list
+     (nth 0 args)
+     phps-mode-parser-sdt--bookkeeping-namespace
+     (car (cdr (nth 0 terminals)))
+     (cdr (cdr (nth 0 terminals))))
+    phps-mode-parser-sdt--bookkeeping-symbol-assignment-stack)
    `(
      ast-type
      constant-string-assignment
@@ -5170,6 +5252,38 @@
 (puthash
  357
  (lambda(args _terminals)
+   (let ((array-pair-list (nth 2 args)))
+     (dolist (array-item array-pair-list)
+       (let ((array-item-type (plist-get array-item 'ast-type)))
+         (cond
+          ((equal array-item-type 'array-pair-expr)
+           (let* ((array-item-expr (plist-get array-item 'expr))
+                  (array-item-expr-type (plist-get array-item-expr 'ast-type)))
+             (cond
+              ((equal array-item-expr-type 'expr-variable)
+               (let* ((expr-variable (plist-get array-item-expr 'variable))
+                      (expr-variable-type (plist-get expr-variable 'ast-type)))
+                 (cond
+                  ((equal expr-variable-type 'variable-callable-variable)
+                   (let* ((callable-variable (plist-get expr-variable 'callable-variable))
+                          (callable-variable-type (plist-get callable-variable 'ast-type)))
+                     (cond
+                      ((equal callable-variable-type 'callable-variable-simple-variable)
+                       (let* ((callable-simple-variable
+                               (plist-get callable-variable 'simple-variable))
+                              (variable-name
+                               (plist-get callable-simple-variable 'variable))
+                              (variable-start
+                               (plist-get callable-simple-variable 'ast-start))
+                              (variable-end
+                               (plist-get callable-simple-variable 'ast-end)))
+                         (push
+                          (list
+                           variable-name
+                           phps-mode-parser-sdt--bookkeeping-namespace
+                           variable-start
+                           variable-end)
+                          phps-mode-parser-sdt--bookkeeping-symbol-assignment-stack))))))))))))))))
    `(
      ast-type
      expr-list
@@ -5288,59 +5402,35 @@
  360
  (lambda(args terminals)
    ;; Save variable declaration in bookkeeping buffer
-   (let ((variable-type1 (plist-get (nth 0 args) 'ast-type))
-         (variable-type2 (plist-get (nth 3 args) 'ast-type)))
+   (let ((variable-type1 (plist-get (nth 0 args) 'ast-type)))
      (cond
-      ((and
-        (equal variable-type1 'variable-callable-variable)
-        (equal variable-type2 'variable-callable-variable))
+      ((equal variable-type1 'variable-callable-variable)
        (let* ((callable-variable1 (plist-get (nth 0 args) 'callable-variable))
-              (callable-variable-type1 (plist-get callable-variable1 'ast-type))
-              (callable-variable2 (plist-get (nth 3 args) 'callable-variable))
-              (callable-variable-type2 (plist-get callable-variable2 'ast-type)))
+              (callable-variable-type1 (plist-get callable-variable1 'ast-type)))
          (cond
-          ((and
-            (equal callable-variable-type1 'callable-variable-simple-variable)
-            (equal callable-variable-type2 'callable-variable-simple-variable))
+          ((equal callable-variable-type1 'callable-variable-simple-variable)
            (let* ((callable-variable-simple-variable1
                    (plist-get callable-variable1 'simple-variable))
                   (callable-variable-simple-variable-type1
                    (plist-get
                     callable-variable-simple-variable1
-                    'ast-type))
-                  (callable-variable-simple-variable2
-                   (plist-get callable-variable2 'simple-variable))
-                  (callable-variable-simple-variable-type2
-                   (plist-get
-                    callable-variable-simple-variable2
                     'ast-type)))
              (cond
-              ((and
-                (equal
-                 callable-variable-simple-variable-type1
-                 'simple-variable-variable)
-                (equal
-                 callable-variable-simple-variable-type2
-                 'simple-variable-variable))
+              ((equal
+                callable-variable-simple-variable-type1
+                'simple-variable-variable)
                (let* ((variable-name1
                        (plist-get
                         callable-variable-simple-variable1
                         'variable))
-                      (variable-name2
-                       (plist-get
-                        callable-variable-simple-variable2
-                        'variable))
                       (symbol-name1
                        variable-name1)
-                      (symbol-name2
-                       variable-name2)
                       (symbol-start
                        (car (cdr (car terminals))))
                       (symbol-end
                        (cdr (cdr (car terminals))))
                       (symbol-scope
                        phps-mode-parser-sdt--bookkeeping-namespace))
-                 (push `(reference ,symbol-name2) symbol-scope)
                  (push
                   (list
                    symbol-name1
@@ -6702,7 +6792,69 @@
 ;; 454 ((function_call) (name argument_list))
 (puthash
  454
- (lambda(args _terminals)
+ (lambda(args terminals)
+   (when (and
+          (equal (plist-get (nth 0 args) 'ast-type) 'string-name)
+          (string= (downcase (plist-get (nth 0 args) 'name)) "define"))
+     (let* ((arguments (nth 1 args))
+            (key-argument (nth 0 arguments))
+            (key-argument-type (plist-get key-argument 'ast-type)))
+       (when (equal key-argument-type 'argument))
+       (let* ((key-argument-value (plist-get key-argument 'value))
+              (key-argument-value-type (plist-get key-argument-value 'ast-type)))
+         (when (equal key-argument-value-type 'expr-scalar)
+           (let* ((key-scalar (plist-get key-argument-value 'scalar))
+                  (key-scalar-type (plist-get key-scalar 'ast-type)))
+             (when (equal key-scalar-type 'scalar-dereferencable-scalar)
+               (let* ((dereferenced-scalar (plist-get key-scalar 'dereferenceable-scalar))
+                      (dereferenced-scalar-type (plist-get dereferenced-scalar 'ast-type)))
+                 (when
+                     (equal
+                      dereferenced-scalar-type
+                      'dereferencable-scalar-constant-encapsed-string)
+                   (let* ((constant-name
+                          (substring
+                           (plist-get
+                            dereferenced-scalar
+                            'constant-encapsed-string)
+                           1
+                           -1))
+                         (constant-start
+                          (1+ (car (cdr (nth 0 (nth 1 (nth 1 terminals)))))))
+                         (constant-end
+                          (1- (cdr (cdr (nth 0 (nth 1 (nth 1 terminals)))))))
+                         (constant-namespace)
+                         (string-pos 0)
+                         (namespace-pos
+                          (string-search "\\" constant-name string-pos))
+                         (namespace-last-pos namespace-pos))
+
+                     ;; Exclude constants starting with \\ since they are silently invalid
+                     (unless (equal namespace-pos 0)
+
+                       ;; Extract any potential constant namespace here
+                       (when namespace-pos
+                         (setq string-pos (1+ string-pos))
+                         (setq namespace-pos (string-search "\\" constant-name string-pos))
+                         (while namespace-pos
+                           (setq namespace-last-pos namespace-pos)
+                           (setq string-pos (1+ string-pos))
+                           (setq namespace-pos (string-search "\\" constant-name string-pos)))
+                         (setq
+                          constant-namespace
+                          (substring constant-name 0 namespace-last-pos))
+                         (setq
+                          constant-name
+                          (substring constant-name (1+ namespace-last-pos))))
+
+                       ;; (message "constant-name: %S %S" constant-name constant-namespace)
+                       (push
+                        (list
+                         constant-name
+                         (if constant-namespace `((namespace ,constant-namespace)) nil)
+                         constant-start
+                         constant-end)
+                        phps-mode-parser-sdt--bookkeeping-symbol-assignment-stack)))))))))))
    `(
      ast-type
      function-call
@@ -7027,6 +7179,73 @@
 (puthash
  482
  (lambda(args _terminals)
+
+   ;; TODO Should bookkeep symbol read here
+   ;; (message "482: %S" args)
+   ;; (let ((constant-name-type (plist-get args 'ast-type))
+   ;;       (constant-name (plist-get args 'name))
+   ;;       (constant-start (car (cdr terminals)))
+   ;;       (constant-end (cdr (cdr terminals))))
+   ;;   (cond
+
+   ;;    ((equal constant-name-type 'string-name)
+   ;;     ;; BLAHA
+   ;;     ;; TODO When reading this symbol should check global namespace
+   ;;     ;; and namespace constants for hit
+   ;;     (let ((symbol-scope phps-mode-parser-sdt--bookkeeping-namespace))
+   ;;       (push (list 'constant) symbol-scope)
+   ;;       (push
+   ;;        (list
+   ;;         constant-name
+   ;;         symbol-scope
+   ;;         constant-start
+   ;;         constant-end)
+   ;;        phps-mode-parser-sdt--bookkeeping-symbol-stack)))
+
+   ;;    ((equal constant-name-type 'qualified-name)
+   ;;     ;; BLAHA\BLAHA
+   ;;     ;; TODO Handle this
+   ;;     )
+
+   ;;    ((equal constant-name-type 'fully-qualified-name)
+   ;;     ;; \BLAHA
+   ;;     (let* ((constant-namespace)
+   ;;            (string-pos 0)
+   ;;            (namespace-pos
+   ;;             (string-search "\\" constant-name string-pos))
+   ;;            (namespace-last-pos namespace-pos))
+
+   ;;       ;; Extract any potential constant namespace here
+   ;;       (when namespace-pos
+   ;;         (setq string-pos (1+ string-pos))
+   ;;         (setq namespace-pos (string-search "\\" constant-name string-pos))
+   ;;         (while namespace-pos
+   ;;           (setq namespace-last-pos namespace-pos)
+   ;;           (setq string-pos (1+ string-pos))
+   ;;           (setq namespace-pos (string-search "\\" constant-name string-pos)))
+   ;;         (unless (= namespace-last-pos 0)
+   ;;           (setq
+   ;;            constant-namespace
+   ;;            (substring constant-name 1 namespace-last-pos)))
+   ;;         (setq
+   ;;          constant-name
+   ;;          (substring constant-name (1+ namespace-last-pos))))
+
+   ;;       (push
+   ;;        (list
+   ;;         constant-name
+   ;;         (if constant-namespace `((namespace ,constant-namespace)) nil)
+   ;;         constant-start
+   ;;         constant-end)
+   ;;        phps-mode-parser-sdt--bookkeeping-symbol-stack)))
+
+   ;;    ((equal constant-name-type 'relative-name)
+   ;;     ;; namespace\A inside namespace X\Y resolves to X\Y\A.
+   ;;     ;; TODO Handle this
+   ;;     )
+
+   ;;    ))
+
    `(
      ast-type
      constant-name
@@ -7539,7 +7758,7 @@
           namespace)))
       ((equal class-name-type 'class-name-static)
        (let ((namespace phps-mode-parser-sdt--bookkeeping-namespace))
-         (push (list 'static-member "static") namespace)
+         (push (list 'static-member (list 'ast-type 'string-name 'name "static")) namespace)
          (setf
           (nth 1 (car phps-mode-parser-sdt--bookkeeping-symbol-stack))
           namespace)))))

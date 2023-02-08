@@ -37,15 +37,14 @@
      (message "\n")
      (phps-mode-ast--generate)
 
-     ;; (message "symbol-table: \n%S\n"
-     ;;          (phps-mode-test--hash-to-list
-     ;;           phps-mode-parser-sdt-symbol-table))
-     ;; (message "phps-mode-parser-sdt-symbol-table-by-uri: \n%S\n" phps-mode-parser-sdt-symbol-table-by-uri)
-
      (unless (equal
               (phps-mode-test--hash-to-list
                phps-mode-parser-sdt-bookkeeping)
               expected-bookkeeping)
+       (message "symbol-table: \n%S\n"
+                (phps-mode-test--hash-to-list
+                 phps-mode-parser-sdt-symbol-table))
+       (message "phps-mode-parser-sdt-symbol-table-by-uri: \n%S\n" phps-mode-parser-sdt-symbol-table-by-uri)
        (message
         "expected-bookkeeping:\n%S\n"
         expected-bookkeeping)
@@ -131,12 +130,16 @@
   "Run test for bookkeeping generation."
   (message "-- Running tests for bookkeeping generation... --\n")
 
-  ;; TODO Support list($abc, $def) = myFunction();
-
+  ;; TODO v1 Symbol namespace should be class | interface | trait / symbol
   ;; TODO v2 Should have more delicate handling of isset, !empty condition blocks
-  ;; TODO v2 Should properly bookkeep inside endlessly nested anonymous functions / arrow functions / anonymous classes
-  ;; TODO v2 bookkeep and include constants in imenu
-  ;; TODO v2 imenu should contain declaration of variables, both define and namespace const and class, trait and interface const
+  ;; TODO v2 Should properly bookkeep inside potentially endlessly nested anonymous functions / arrow functions / anonymous classes
+  ;; TODO v2 bookkeep and include all kind of constants in imenu
+
+  ;; (phps-mode-test-ast--should-bookkeep
+  ;;  "<?php\n\nnamespace mySpace\n{\n    define('MY_CONSTANT', 'abc123');\n    const MY_CONSTANT2 = 'def456';\n\n    if (\\MY_CONSTANT) {\n        echo 'hit';\n    }\n    if (MY_CONSTANT) {\n        echo 'hit';\n    }\n    if (MY_CONSTANT2) {\n        echo 'hit';\n    }\n    if (\\mySpace\\MY_CONSTANT2) {\n        echo 'hit';\n    }\n\n    if (\\YOUR_CONSTANT) {\n        echo 'miss';\n    }\n    if (YOUR_CONSTANT) {\n        echo 'miss';\n    }\n    if (\\MY_CONSTANT2) {\n        echo 'miss';\n    }\n    if (\\mySpace\\MY_CONSTANT) {\n        echo 'miss';\n    }\n\n    class myClass\n    {\n        public const MY_CONSTANT3 = 'abc123';\n        function myFunction()\n        {\n            if (self::MY_CONSTANT3) {\n                echo 'hit';\n            }\n        }\n    }\n}\nnamespace {\n    define('THEIR_CONSTANT', 'abc123');\n    if (\\THEIR_CONSTANT) {\n        echo 'hit';\n    }\n    if (THEIR_CONSTANT) {\n        echo 'hit';\n    }\n    if (MY_CONSTANT) {\n        echo 'miss';\n    }\n    if (\\MY_CONSTANT) {\n        echo 'hit';\n    }\n    if (MY_CONSTANT) {\n        echo 'hit';\n    }\n    if (\\mySpace\\MY_CONSTANT2) {\n        echo 'hit';\n    }\n}\n"
+  ;;  "Constants in all possible scopes"
+  ;;  '(((159 170) 1) ((208 220) 1) ((371 384) 0) ((848 862) 5) ((900 911) 1) ((1000 1011) 1))
+  ;;  '(("abc")))
 
   (phps-mode-test-ast--should-bookkeep
    "<?php\n\n$var = 'abc';\n\nif ($var2) {\n    echo 'This never happens';\n}\nif ($var) {\n    echo 'This happens';\n}"
@@ -155,6 +158,12 @@
    "Bookkeeping in root level variable assignments #3"
    '(((8 12) 1) ((21 25) 2) ((30 34) 1) ((40 44) 2))
    '(("$abc" . 8) ("$var" . 21)))
+
+  (phps-mode-test-ast--should-bookkeep
+   "<?php\n\n$var = ['abc' => 123];\n\n$ref = &$var['abc'];"
+   "Bookkeeping in root level variable assignments #4"
+   '(((8 12) 1) ((32 36) 2) ((40 44) 1))
+   '(("$var" . 8) ("$ref" . 32)))
 
   (phps-mode-test-ast--should-bookkeep
    "<?php\n\n$var2 = 4;\n\nfunction myFunction($var)\n{\n    $var3 = 3;\n    if ($var) {\n        echo 'Hit';\n    }\n    if ($var2) {\n        echo 'Miss';\n    }\n    if ($var3) {\n        echo 'Hit';\n    }\n}\n\nfunction myFunction2($abc)\n{\n    if ($var) {\n        echo 'Miss';\n    }\n    if ($abc) {\n        echo 'Hit';\n    }\n}\n\nif ($var) {\n    echo 'Miss';\n}\nif ($var2) {\n    echo 'Hit';\n}"
@@ -186,6 +195,12 @@
    '(("class myParent" ("declaration" . 35)) ("class myClass" ("declaration" . 54) ("$var1" . 93) ("$var2" . 127) ("$var3" . 145) ("$var4" . 160) ("function __construct" ("declaration" . 180)))))
 
   (phps-mode-test-ast--should-bookkeep
+   "<?php\nclass myClass\n{\n    private $var = 123, $def = 'acb';\n}"
+   "Multiple class properties assigned on the same line."
+   '(((35 39) 1) ((47 51) 2))
+   '(("class myClass" ("declaration" . 13) ("$var" . 35) ("$def" . 47))))
+
+  (phps-mode-test-ast--should-bookkeep
    "<?php\n\ntry {\n    \n} catch (\\Exception $e) {\n    if ($e) {\n        echo 'Hit';\n    }\n}\n\nif ($e) {\n    echo 'Miss';\n}\n"
    "Bookkeeping of try catch variable assignment"
    '(((39 41) 1) ((53 55) 1) ((92 94) 1))
@@ -214,6 +229,12 @@
    "Bookkeeping of variable declarations in array"
    '(((9 16) 1) ((18 25) 2) ((45 52) 1) ((78 85) 2))
    '(("$random" . 9) ("$bandom" . 18)))
+
+  (phps-mode-test-ast--should-bookkeep
+   "<?php\n\nlist($random, $bandom) = myValues();\nif ($random) {\n    echo 'Hit';\n}\nif ($bandom) {\n    echo 'Hit';\n}\n"
+   "Bookkeeping of variable declarations in array via list()"
+   '(((13 20) 1) ((22 29) 2) ((49 56) 1) ((82 89) 2))
+   '(("$random" . 13) ("$bandom" . 22)))
 
   (phps-mode-test-ast--should-bookkeep
    "<?php\n\n$var = 123;\n\nfunction test($abc) {\n    global $var, $var2;\n    if ($var) {\n        echo 'Hit';\n    }\n    if ($var2) {\n        echo 'Hit';\n    }\n}"

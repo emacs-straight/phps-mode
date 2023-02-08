@@ -61,7 +61,7 @@ You can install via ELPA (`M-x package-install` + `RET` + `phps-mode` + `RET`), 
 
 For flycheck support run `(phps-mode-flycheck-setup)`.
 
-### Asynchronous lexer
+### Asynchronous lexer (via threads or processes)
 
 Enable with `(setq phps-mode-async-process t)`
 Disable with `(setq phps-mode-async-process nil)`
@@ -80,6 +80,12 @@ Enable with:
 
 ``` emacs-lisp
 (setq phps-mode-async-process-using-async-el nil)
+```
+
+### Enable / disable parser cache
+
+``` emacs-lisp
+(setq phps-mode-cache--use-p nil)
 ```
 
 ## Installation and Configuration examples
