@@ -1510,6 +1510,135 @@ of performed operations.  Optionally do it FORCE-SYNCHRONOUS."
 
           data)))))
 
+(defun phps-mode-lex-analyzer--beginning-of-defun (&optional arg)
+  "Custom implementation of `beginning-of-defun'."
+  (let ((iterations (if arg (abs arg) 1))
+        (forward-p (and arg (< arg 0)))
+        (index 0)
+        (found-index t))
+    (save-excursion
+      (while (and found-index (< index iterations))
+        (setq found-index nil)
+        (setq index (1+ index))
+        (if forward-p
+            (when
+                (search-forward-regexp
+                 "[\n\t ]+function\\([\t\n ]+\\|(\\)"
+                 nil
+                 t)
+              (move-beginning-of-line nil)
+              (setq found-index (point)))
+            (when
+                (search-backward-regexp
+                 "[\n\t ]+function\\([\t\n ]+\\|(\\)"
+                 nil
+                 t)
+              (search-forward-regexp "[\n]*")
+              (move-beginning-of-line nil)
+              (setq found-index (point))))))
+    (if found-index
+        (progn
+          (goto-char found-index)
+          t)
+      nil)))
+
+(defun phps-mode-lex-analyzer--end-of-defun (&optional arg _interactive)
+  "Custom implementation of `end-of-defun'."
+  (let ((found-index t)
+        (index 0)
+        (iterations (if arg arg 1)))
+    (save-excursion
+      (while (and
+              found-index
+              (< index iterations))
+        (setq found-index nil)
+        (setq index (1+ index))
+        (move-end-of-line nil)
+        (when (phps-mode-lex-analyzer--beginning-of-defun)
+          (let ((bracket-level 0)
+                (found-initial-bracket)
+                (failed-to-find-ending-quote))
+            (while (and
+                    (not failed-to-find-ending-quote)
+                    (or
+                     (not found-initial-bracket)
+                     (not (= bracket-level 0)))
+                    (search-forward-regexp "\\(/\\*\\|[{}\"'#]\\|//\\)" nil t))
+              (let ((match-string (match-string-no-properties 0)))
+                (cond
+                 ((string= match-string "{")
+                  (unless found-initial-bracket
+                    (setq found-initial-bracket t))
+                  (setq bracket-level (1+ bracket-level)))
+                 ((string= match-string "}")
+                  (setq bracket-level (1- bracket-level)))
+                 ((string= match-string "\"")
+                  (let ((is-escaped)
+                        (quote-ending-at))
+                    (save-excursion
+                      (backward-char 2)
+                      (while (looking-at-p "\\\\")
+                        (setq is-escaped (not is-escaped))
+                        (backward-char)))
+                    (unless is-escaped
+                      (save-excursion
+                        (while (and
+                                (not quote-ending-at)
+                                (search-forward-regexp "\"" nil t))
+                          (let ((is-escaped-ending))
+                            (save-excursion
+                              (backward-char 2)
+                              (while (looking-at-p "\\\\")
+                                (setq is-escaped-ending (not is-escaped-ending))
+                                (backward-char)))
+                            (unless is-escaped-ending
+                              (setq quote-ending-at (point)))))))
+                    (if quote-ending-at
+                        (goto-char quote-ending-at)
+                      (setq failed-to-find-ending-quote t))))
+                 ((string= match-string "'")
+                  (let ((is-escaped)
+                        (quote-ending-at))
+                    (save-excursion
+                      (backward-char 2)
+                      (while (looking-at-p "\\\\")
+                        (setq is-escaped (not is-escaped))
+                        (backward-char)))
+                    (unless is-escaped
+                      (save-excursion
+                        (while (and
+                                (not quote-ending-at)
+                                (search-forward-regexp "'" nil t))
+                          (let ((is-escaped-ending))
+                            (save-excursion
+                              (backward-char 2)
+                              (while (looking-at-p "\\\\")
+                                (setq is-escaped-ending (not is-escaped-ending))
+                                (backward-char)))
+                            (unless is-escaped-ending
+                              (setq quote-ending-at (point)))))))
+                    (if quote-ending-at
+                        (goto-char quote-ending-at)
+                      (setq failed-to-find-ending-quote t))))
+                 ((or
+                   (string= match-string "#")
+                   (string= match-string "//"))
+                  (forward-line)
+                  )
+                 ((string= match-string "/*")
+                  (search-forward-regexp "\\*/" nil t)))))
+            (when (and
+                   (= bracket-level 0)
+                   found-initial-bracket)
+              (setq
+               found-index
+               (point)))))))
+    (if found-index
+        (progn
+          (goto-char found-index)
+          t)
+      nil)))
+
 (provide 'phps-mode-lex-analyzer)
 
 ;;; phps-mode-lex-analyzer.el ends here

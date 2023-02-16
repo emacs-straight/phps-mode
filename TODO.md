@@ -1,7 +1,5 @@
 # TODO
 
-## Parser
-
 ## Indentation
 
             'language' =>
@@ -33,3 +31,4 @@
 ## Other
 
 * Support for mmm-mode or similar?
+

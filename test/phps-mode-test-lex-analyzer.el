@@ -152,9 +152,67 @@
 
   )
 
+(defun phps-mode-test-lex-analyzer--narrow-to-defun ()
+  "Test (narrow-to-defun)."
+
+  (phps-mode-test--with-buffer
+   "<?php\nfunction test($a) {\n    return $a + 1;\n}\necho 'here';\n"
+   "Test `beginning-of-defun', `end-of-defun' and `narrow-to-defun' basic example"
+   (goto-char 27)
+   (should (equal (phps-mode-lex-analyzer--beginning-of-defun) t))
+   (should (equal (point) 7))
+   (should (equal (phps-mode-lex-analyzer--end-of-defun) t))
+   (should (equal (point) 47))
+   (goto-char 27)
+   (narrow-to-defun)
+   (should (equal (point-min) 7))
+   (should (equal (point-max) 48)))
+
+  (phps-mode-test--with-buffer
+   "<?php\nfunction test2($a) {\n    echo 'was there }';\n    echo \"was here \\\"}\\\" or there\";\n    return $a + 1;\n}"
+   "Test `beginning-of-defun', `end-of-defun' and `narrow-to-defun' advanced example"
+   (goto-char 41)
+   (should (equal (phps-mode-lex-analyzer--beginning-of-defun) t))
+   (should (equal (point) 7))
+   (should (equal (phps-mode-lex-analyzer--end-of-defun) t))
+   (should (equal (point) 108))
+   (goto-char 65)
+   (narrow-to-defun)
+   (should (equal (point-min) 7))
+   (should (equal (point-max) 108)))
+
+  (phps-mode-test--with-buffer
+   "<?php\necho 'here';\n$var = function() {\n    echo 'here';\n};\necho 'there';"
+   "Test `beginning-of-defun', `end-of-defun' and `narrow-to-defun' for a anonymous function."
+   (goto-char 53)
+   (should (equal (phps-mode-lex-analyzer--beginning-of-defun) t))
+   (should (equal (point) 20))
+   (should (equal (phps-mode-lex-analyzer--end-of-defun) t))
+   (should (equal (point) 58))
+   (goto-char 47)
+   (narrow-to-defun)
+   (should (equal (point-min) 20))
+   (should (equal (point-max) 58)))
+
+  (phps-mode-test--with-buffer
+   "<?php\nnamespace myNamespace\n{\n    class myClass\n    {\n        function myFunction($arg)\n        {\n            /**\n             * if ($arg) { return true; }\n             */\n            if ($arg) {\n                // }}\n                # }}\n            }\n            return false;\n        }\n    }\n}"
+   "Test `beginning-of-defun', `end-of-defun' and `narrow-to-defun' with commented-out code."
+   (goto-char 148)
+   (should (equal (phps-mode-lex-analyzer--beginning-of-defun) t))
+   (should (equal (point) 55))
+   (should (equal (phps-mode-lex-analyzer--end-of-defun) t))
+   (should (equal (point) 289))
+   (goto-char 253)
+   (narrow-to-defun)
+   (should (equal (point-min) 55))
+   (should (equal (point-max) 290)))
+
+  )
+
 (defun phps-mode-test-lex-analyzer ()
   "Run test for functions."
   ;; (setq debug-on-error t)
+  (phps-mode-test-lex-analyzer--narrow-to-defun)
   (phps-mode-test-lex-analyzer--process-changes)
   (phps-mode-test-lex-analyzer--get-moved-imenu)
   (phps-mode-test-lex-analyzer--comment-uncomment-region))
