@@ -386,6 +386,13 @@
    '(((35 39) 1) ((105 109) 1) ((165 170) 0) ((221 226) 2))
    '(("class myClass" ("declaration" . 14) ("$abc" . 35) ("function __construct" ("declaration" . 67)))))
 
+
+  (phps-mode-test-ast--should-bookkeep
+   "<?php\nabstract class AbstractClass\n{\n    // Force Extending class to define this method\n    abstract protected function getValue();\n    abstract protected function prefixValue($prefix);\n\n    // Common method\n    public function printOut() {\n        print $this->getValue() . \"\\n\";\n    }\n}\n\nclass ConcreteClass1 extends AbstractClass\n{\n    protected function getValue() {\n        return \"ConcreteClass1\";\n    }\n\n    public function prefixValue($prefix) {\n        return \"{$prefix}ConcreteClass1\";\n    }\n}\n\nclass ConcreteClass2 extends AbstractClass\n{\n    public function getValue() {\n        return \"ConcreteClass2\";\n    }\n\n    public function prefixValue($prefix) {\n        return \"{$prefix}ConcreteClass2\";\n    }\n}\n\n$class1 = new ConcreteClass1;\n$class1->printOut();\necho $class1->prefixValue('FOO_') .\"\\n\";\n\n$class2 = new ConcreteClass2;\n$class2->printOut();\necho $class2->prefixValue('FOO_') .\"\\n\";\n?>"
+   "Bookkeeping of abstract class"
+   '(((177 184) 1) ((256 261) 2) ((444 451) 5) ((472 479) 5) ((656 663) 8) ((684 691) 8) ((718 725) 9) ((748 755) 9) ((774 781) 9) ((811 818) 10) ((841 848) 10) ((867 874) 10))
+   '(("class AbstractClass" ("declaration" . 22) ("function getValue" ("declaration" . 121)) ("function prefixValue" ("declaration" . 165) ("$prefix" . 177)) ("function printOut" ("declaration" . 229))) ("class ConcreteClass1" ("declaration" . 297) ("function getValue" ("declaration" . 359)) ("function prefixValue" ("declaration" . 432) ("$prefix" . 444))) ("class ConcreteClass2" ("declaration" . 512) ("function getValue" ("declaration" . 571)) ("function prefixValue" ("declaration" . 644) ("$prefix" . 656))) ("$class1" . 718) ("$class2" . 811)))
+
   (message "\n-- Ran tests for bookkeeping generation. --"))
 
 (defun phps-mode-test-ast ()
