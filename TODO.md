@@ -31,4 +31,3 @@
 ## Other
 
 * Support for mmm-mode or similar?
-
