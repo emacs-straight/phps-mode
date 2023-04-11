@@ -389,6 +389,13 @@
    '(((177 184) 1) ((256 261) 2) ((444 451) 5) ((472 479) 5) ((656 663) 8) ((684 691) 8) ((718 725) 9) ((748 755) 9) ((774 781) 9) ((811 818) 10) ((841 848) 10) ((867 874) 10))
    '(("class AbstractClass" ("declaration" . 22) ("function getValue" ("declaration" . 121)) ("function prefixValue" ("declaration" . 165) ("$prefix" . 177)) ("function printOut" ("declaration" . 229))) ("class ConcreteClass1" ("declaration" . 297) ("function getValue" ("declaration" . 359)) ("function prefixValue" ("declaration" . 432) ("$prefix" . 444))) ("class ConcreteClass2" ("declaration" . 512) ("function getValue" ("declaration" . 571)) ("function prefixValue" ("declaration" . 644) ("$prefix" . 656))) ("$class1" . 718) ("$class2" . 811)))
 
+  (phps-mode-test-ast--should-bookkeep
+   "<?php
+\nnamespace myNamespace;\n\nfunction myFunction()\n{\n    $var = 'abc';\n    if ($var) {\n        echo 'Hit';\n    }\n}"
+   "Bookkeeping of namespaced function with variables."
+   '(((60 64) 1) ((82 86) 1))
+   '(("namespace myNamespace" ("declaration" . 18) ("function myFunction" ("declaration" . 41) ("function myFunction" ("declaration" . 41)) ("$var" . 60)))))
+
   (message "\n-- Ran tests for bookkeeping generation. --"))
 
 (defun phps-mode-test-ast ()
