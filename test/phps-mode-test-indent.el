@@ -1,6 +1,6 @@
 ;;; phps-mode-test-indent.el --- Tests for indentation -*- lexical-binding: t -*-
 
-;; Copyright (C) 2018-2023  Free Software Foundation, Inc.
+;; Copyright (C) 2018-2024  Free Software Foundation, Inc.
 
 
 ;;; Commentary:
@@ -23,12 +23,15 @@
   (execute-kbd-macro (kbd "TAB"))
   (while (search-forward "\n" nil t nil)
     ;; Go to random point on line
-    (let ((line-min-position (line-beginning-position))
-          (line-max-position (line-end-position)))
-      (goto-char
-       (+
-        line-min-position
-        (random (- line-max-position line-min-position)))))
+    (let* ((line-min-position (line-beginning-position))
+           (line-max-position (line-end-position))
+           (line-diff (- line-max-position line-min-position)))
+      (if (> line-diff 0)
+        (goto-char
+         (+
+          line-min-position
+          (random line-diff)))
+        (goto-char line-min-position)))
     (execute-kbd-macro (kbd "TAB"))))
 
 (defun phps-mode-test-indent--should-equal (string name &optional new-string)
@@ -321,6 +324,16 @@ STRING with NAME with optional NEW-STRING."
       nil)))
 
   (message "Passed chaining test #10")
+
+  (with-temp-buffer
+    (insert "<?php\n\nif ($you) {\n    if ($here) {\n        if ($true) {\n            if ($a = 23) {\n                $myObject->build(array(\n                    'name' => 'Trueman',\n                    'sku' => 25.0\n                ))\n                ->test()\n                    ->validate()\n                        ->give();\n            }\n        }\n    }\n}\n")
+    (goto-char 272)
+    (should
+     (equal
+      (phps-mode-indent--get-previous-start-of-chaining)
+      "                ->test()")))
+
+  (message "Passed chaining test #11")
 
   (should
    (equal
@@ -665,7 +678,7 @@ STRING with NAME with optional NEW-STRING."
    "Line after multi-line function call inside if condition list")
 
   (phps-mode-test-indent--should-equal
-   "<?php\n\nif (\n    (!isset(Meta()->login)\n        || !$name = Meta()->login->name())\n        && $override\n) {\n    echo 'here';\n}\n"
+   "<?php\n\nif (\n    (!isset(Meta()->login)\n        || !$name = Meta()->login->name())\n    && $override\n) {\n    echo 'here';\n}\n"
    "Line after multi-line condition in parenthesis")
 
   (phps-mode-test-indent--should-equal
@@ -673,7 +686,7 @@ STRING with NAME with optional NEW-STRING."
    "Line after variable not equal condition")
 
   (phps-mode-test-indent--should-equal
-   "<?php\n\nif (\n    (is_array($data)\n        && !empty($data['index'])\n        && (is_a($data['index'], 'Index')\n            || is_a($data['Index'], 'Index2')))\n    || is_a($data, 'WC_Index')\n) {\n\n}\n"
+   "<?php\n\nif (\n    (is_array($data)\n        && !empty($data['index'])\n        && (is_a($data['index'], 'Index')\n            || is_a($data['Index'], 'Index2')))\n    || is_a($data, 'WC_Index')\n) {\n    \n}\n"
    "Line after multi-line condition in parenthesis 2")
 
   (phps-mode-test-indent--should-equal
@@ -710,7 +723,7 @@ STRING with NAME with optional NEW-STRING."
    "<?php\nif (true) {\n    echo 'here';\n    /* something */\n    echo 'there';\n}\n")
 
   (phps-mode-test-indent--should-equal
-   "<?php\nif (true) {\n    $variable1 = (true\n        ? true\n        : false);\n\n    $variable2 = (true\n        ? true\n        : false);\n\n    $variable3 = myFunction(true);\n    echo 'here';\n\n}\n"
+   "<?php\nif (true) {\n    $variable1 = (true\n        ? true\n        : false);\n    \n    $variable2 = (true\n        ? true\n        : false);\n    \n    $variable3 = myFunction(true);\n    echo 'here';\n    \n}\n"
    "Line after multi-line parenthesized logical expression in assignment")
 
   (phps-mode-test-indent--should-equal
@@ -754,7 +767,7 @@ STRING with NAME with optional NEW-STRING."
    "Plain HTML markup")
 
   (phps-mode-test-indent--should-equal
-   "<?php\n\nif (true) {\n    if (\n        true\n    ) {\n        return false;\n    }\n\n    /**\n     * My first line,\n     * my second line.\n     *\n     * @since Module 1.0.0\n     */\n    echo 'here';\n\n}\n"
+   "<?php\n\nif (true) {\n    if (\n        true\n    ) {\n        return false;\n    }\n    \n    /**\n     * My first line,\n     * my second line.\n     *\n     * @since Module 1.0.0\n     */\n    echo 'here';\n    \n}\n"
    "Doc-comment ending with comma and dot.")
 
   (phps-mode-test-indent--should-equal

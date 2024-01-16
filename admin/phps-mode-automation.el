@@ -1,6 +1,6 @@
 ;;; phps-mode-automation --- Generate a parser file -*- lexical-binding: t -*-
 
-;; Copyright (C) 2018-2023  Free Software Foundation, Inc.
+;; Copyright (C) 2018-2024  Free Software Foundation, Inc.
 
 
 ;;; Commentary:
@@ -24,6 +24,13 @@
   "Generate parser."
   (if (fboundp 'parser-generator-lr-export-to-elisp)
       (progn
+
+        ;; Emacs 29.1
+        ;; Batch jobs that are supposed to run for a long time should
+        ;; adjust the limit back down to 0.1
+        (setq
+         gc-cons-percentage
+         0.1)
 
         (let* ((global-declaration
                 (phps-mode-automation-parser-generator--global-declaration))
